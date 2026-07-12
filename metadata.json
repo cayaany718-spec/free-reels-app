@@ -1,0 +1,6 @@
+{
+  "name": "FreeReels",
+  "description": "Ứng dụng xem phim ngắn chất lượng cao FreeReels với nhiều kịch bản hấp dẫn lôi cuốn.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
