@@ -4,11 +4,46 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class DramaViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = DramaRepository(application)
+
+    // Update checking state
+    private val _appVersionCode = 120
+    val appVersionCode = _appVersionCode
+    
+    private val _appVersionName = "1.2.0"
+    val appVersionName = _appVersionName
+
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate = _isCheckingUpdate.asStateFlow()
+
+    private val _updateAvailable = MutableStateFlow(false)
+    val updateAvailable = _updateAvailable.asStateFlow()
+
+    private val _updateVersionName = MutableStateFlow("")
+    val updateVersionName = _updateVersionName.asStateFlow()
+
+    private val _updateReleaseNotes = MutableStateFlow("")
+    val updateReleaseNotes = _updateReleaseNotes.asStateFlow()
+
+    private val _updateDownloadUrl = MutableStateFlow("")
+    val updateDownloadUrl = _updateDownloadUrl.asStateFlow()
+
+    private val _isForceUpdate = MutableStateFlow(false)
+    val isForceUpdate = _isForceUpdate.asStateFlow()
+
+    private val _updateCheckMessage = MutableStateFlow<String?>(null)
+    val updateCheckMessage = _updateCheckMessage.asStateFlow()
+    
+    var updateConfigUrl = "https://raw.githubusercontent.com/tranbi200000/moviebox-configs/main/update.json"
 
     // Raw static and reactive flows
     val allDramas = repository.getDramas()
@@ -104,6 +139,80 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
         if (defaultDrama != null) {
             selectDrama(defaultDrama)
         }
+        // Auto check for updates quietly on startup
+        checkForUpdates(manual = false, simulate = false)
+    }
+
+    fun checkForUpdates(manual: Boolean = false, simulate: Boolean = false) {
+        viewModelScope.launch {
+            _isCheckingUpdate.value = true
+            _updateCheckMessage.value = null
+            
+            if (simulate) {
+                // Simulate finding a newer version
+                kotlinx.coroutines.delay(1000)
+                _updateVersionName.value = "1.3.0"
+                _updateReleaseNotes.value = "- Hỗ trợ tự động kiểm tra và hiển thị hộp thoại cập nhật trực tiếp cho người dùng!\n- Nâng cấp tính năng liên kết tài khoản Google thật qua Google Credential Manager.\n- Tối ưu hóa tốc độ tải phim ngắn mượt mà gấp 2 lần.\n- Giao diện tối Dark Mode cao cấp chuẩn rạp phim."
+                _updateDownloadUrl.value = "https://example.com/moviebox-latest.apk"
+                _isForceUpdate.value = false
+                _updateAvailable.value = true
+                _isCheckingUpdate.value = false
+                if (manual) {
+                    _updateCheckMessage.value = "Phát hiện bản cập nhật mới v1.3.0!"
+                }
+                return@launch
+            }
+
+            try {
+                withContext(Dispatchers.IO) {
+                    val urlConnection = URL(updateConfigUrl).openConnection() as HttpURLConnection
+                    urlConnection.connectTimeout = 5000
+                    urlConnection.readTimeout = 5000
+                    try {
+                        val data = urlConnection.inputStream.bufferedReader().use { it.readText() }
+                        val json = JSONObject(data)
+                        val serverVersionCode = json.optInt("versionCode", 0)
+                        val serverVersionName = json.optString("versionName", "1.0.0")
+                        val downloadUrl = json.optString("downloadUrl", "")
+                        val releaseNotes = json.optString("releaseNotes", "")
+                        val forceUpdate = json.optBoolean("isForceUpdate", false)
+
+                        if (serverVersionCode > _appVersionCode) {
+                            _updateVersionName.value = serverVersionName
+                            _updateReleaseNotes.value = releaseNotes
+                            _updateDownloadUrl.value = downloadUrl
+                            _isForceUpdate.value = forceUpdate
+                            _updateAvailable.value = true
+                            if (manual) {
+                                _updateCheckMessage.value = "Có bản cập nhật mới v$serverVersionName!"
+                            }
+                        } else {
+                            _updateAvailable.value = false
+                            if (manual) {
+                                _updateCheckMessage.value = "Ứng dụng đang ở phiên bản mới nhất!"
+                            }
+                        }
+                    } finally {
+                        urlConnection.disconnect()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                if (manual) {
+                    _updateCheckMessage.value = "Lỗi kết nối máy chủ cập nhật: ${e.localizedMessage}"
+                }
+            } finally {
+                _isCheckingUpdate.value = false
+            }
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _updateAvailable.value = false
+    }
+
+    fun clearUpdateCheckMessage() {
+        _updateCheckMessage.value = null
     }
 
     // Operations

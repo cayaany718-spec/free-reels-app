@@ -28,6 +28,19 @@ import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.PrimaryCoral
 import com.example.viewmodel.DramaViewModel
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.ui.theme.PrimaryGold
+import com.example.ui.theme.PrimaryCoral
+
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -158,8 +171,135 @@ class MainActivity : ComponentActivity() {
             viewModel = viewModel,
             modifier = Modifier.padding(innerPadding)
           )
+          
+          // Global App Update Checker Dialog
+          AppUpdateDialog(viewModel = viewModel)
         }
       }
     }
   }
+}
+
+@Composable
+fun AppUpdateDialog(
+    viewModel: DramaViewModel
+) {
+    val context = LocalContext.current
+    val updateAvailable by viewModel.updateAvailable.collectAsStateWithLifecycle()
+    val updateVersionName by viewModel.updateVersionName.collectAsStateWithLifecycle()
+    val updateReleaseNotes by viewModel.updateReleaseNotes.collectAsStateWithLifecycle()
+    val updateDownloadUrl by viewModel.updateDownloadUrl.collectAsStateWithLifecycle()
+    val isForceUpdate by viewModel.isForceUpdate.collectAsStateWithLifecycle()
+
+    if (updateAvailable) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isForceUpdate) {
+                    viewModel.dismissUpdateDialog()
+                }
+            },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowUpward,
+                        contentDescription = "Cập nhật",
+                        tint = PrimaryCoral,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Text(
+                        text = "Phát hiện cập nhật mới! 🚀",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Phiên bản mới nhất: v$updateVersionName",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = PrimaryGold
+                    )
+                    
+                    Text(
+                        text = "Phiên bản hiện tại: v${viewModel.appVersionName}",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "Những thay đổi mới:",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = updateReleaseNotes,
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.85f),
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
+
+                    if (isForceUpdate) {
+                        Text(
+                            text = "(*) Đây là bản cập nhật bắt buộc để tiếp tục sử dụng ứng dụng ổn định nhất.",
+                            fontSize = 11.sp,
+                            color = PrimaryCoral,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateDownloadUrl))
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Không thể mở liên kết tải xuống!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Cập nhật ngay", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                if (!isForceUpdate) {
+                    TextButton(
+                        onClick = { viewModel.dismissUpdateDialog() }
+                    ) {
+                        Text("Để sau", color = Color.White.copy(alpha = 0.6f))
+                    }
+                }
+            },
+            containerColor = Color(0xFF1E1D24),
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 }
