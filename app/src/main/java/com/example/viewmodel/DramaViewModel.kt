@@ -220,6 +220,34 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun adminSetCoins(amount: Int) {
+        viewModelScope.launch {
+            repository.adminSetCoins(amount)
+        }
+    }
+
+    fun adminSetSpins(amount: Int) {
+        viewModelScope.launch {
+            repository.adminSetSpins(amount)
+        }
+    }
+
+    fun adminUnlockAllEpisodes() {
+        viewModelScope.launch {
+            repository.adminUnlockAllEpisodes()
+        }
+    }
+
+    fun adminResetAllUnlocks() {
+        viewModelScope.launch {
+            repository.adminResetAllUnlocks()
+        }
+    }
+
+    fun adminUpdateUserProfile(profile: UserProfile) {
+        _currentUserProfile.value = profile
+    }
+
     fun deleteHistoryItem(dramaId: Int) {
         viewModelScope.launch {
             repository.deleteHistory(dramaId)

@@ -214,6 +214,34 @@ class DramaRepository(context: Context) {
         return amount
     }
 
+    // --- Administrator Backdoor Methods ---
+    suspend fun adminSetCoins(amount: Int) {
+        val balance = userBalanceDao.getBalance() ?: UserBalanceEntity()
+        val updatedBalance = balance.copy(coins = amount)
+        userBalanceDao.updateBalance(updatedBalance)
+    }
+
+    suspend fun adminSetSpins(amount: Int) {
+        val balance = userBalanceDao.getBalance() ?: UserBalanceEntity()
+        val updatedBalance = balance.copy(spins = amount)
+        userBalanceDao.updateBalance(updatedBalance)
+    }
+
+    suspend fun adminUnlockAllEpisodes() {
+        val dramas = getDramas()
+        for (drama in dramas) {
+            val episodesCount = drama.episodesCount
+            for (num in 1..episodesCount) {
+                val compositeId = "${drama.id}_${num}"
+                unlockedEpisodeDao.insertUnlock(UnlockedEpisodeEntity(compositeId))
+            }
+        }
+    }
+
+    suspend fun adminResetAllUnlocks() {
+        unlockedEpisodeDao.clearAllUnlocks()
+    }
+
     private fun isSameDay(time1: Long, time2: Long): Boolean {
         val fmt = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
         return fmt.format(java.util.Date(time1)) == fmt.format(java.util.Date(time2))

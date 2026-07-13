@@ -143,7 +143,7 @@ fun PlayerScreen(
         }
     }
 
-    // Helper functions for previous and next episodes with continuous scroll support (FreeReels style!)
+    // Helper functions for previous and next episodes with continuous scroll support (MovieBox style!)
     val playNextEpisode: () -> Unit = {
         val nextEp = episodes.find { it.episodeNumber == episode.episodeNumber + 1 }
         if (nextEp != null) {
@@ -997,7 +997,7 @@ fun AdSimulatorView(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "FreeReels VIP Premium",
+                        text = "MovieBox VIP Premium",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -1016,7 +1016,7 @@ fun AdSimulatorView(
 
             // Brand tagline
             Text(
-                text = "${viewModel.getString("ad_label")} sponsored by FreeReels Ads",
+                text = "${viewModel.getString("ad_label")} sponsored by MovieBox Ads",
                 fontSize = 10.sp,
                 color = Color.White.copy(alpha = 0.4f),
                 textAlign = TextAlign.Center

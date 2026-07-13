@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShortFlix Admin Console</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Supabase JS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0B0A0F;
+            color: #E2E8F0;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111015;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2E2B38;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D4AF37;
+        }
+        /* Active nav styling */
+        .nav-active {
+            background: linear-gradient(90deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0) 100%);
+            border-left: 3px solid #D4AF37;
+            color: #FFFFFF;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-x-hidden">
+
+    <!-- Top Loading Indicator -->
+    <div id="topLoading" class="h-1 bg-amber-500 w-full absolute top-0 left-0 transition-all duration-300 z-50" style="width: 0%;"></div>
+
+    <div class="flex flex-1 h-screen overflow-hidden">
+        
+        <!-- SIDEBAR -->
+        <aside class="w-64 bg-[#111015] border-r border-[#1F1E24] flex flex-col justify-between shrink-0">
+            <div>
+                <!-- Brand Header -->
+                <div class="p-6 border-b border-[#1F1E24] flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center text-black font-extrabold text-xl shadow-lg shadow-amber-500/20">
+                        SF
+                    </div>
+                    <div>
+                        <h1 class="font-extrabold text-white text-md tracking-wider">SHORTFLIX</h1>
+                        <p class="text-xs text-amber-500 font-mono font-bold tracking-tight">ADMIN PORTAL v1.0</p>
+                    </div>
+                </div>
+
+                <!-- Nav Menu -->
+                <nav class="p-4 space-y-1.5">
+                    <button onclick="switchTab('dashboard')" id="btn-dashboard" class="nav-active w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-[#1A191E] transition-all text-sm font-semibold text-left">
+                        <i class="fa-solid fa-chart-line text-lg w-5"></i>
+                        <span>Bảng Điều Khiển</span>
+                    </button>
+                    <button onclick="switchTab('dramas')" id="btn-dramas" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-[#1A191E] transition-all text-sm font-semibold text-left">
+                        <i class="fa-solid fa-clapperboard text-lg w-5"></i>
+                        <span>Quản Lý Phim</span>
+                    </button>
+                    <button onclick="switchTab('episodes')" id="btn-episodes" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-[#1A191E] transition-all text-sm font-semibold text-left">
+                        <i class="fa-solid fa-circle-play text-lg w-5"></i>
+                        <span>Quản Lý Tập Phim</span>
+                    </button>
+                    <button onclick="switchTab('users')" id="btn-users" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-[#1A191E] transition-all text-sm font-semibold text-left">
+                        <i class="fa-solid fa-users-gear text-lg w-5"></i>
+                        <span>Người Dùng & Số Dư</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Configuration Indicator / Footer -->
+            <div class="p-4 border-t border-[#1F1E24] space-y-3">
+                <div class="p-3 bg-[#16151A] rounded-xl border border-[#1F1E24] text-xs">
+                    <div class="flex items-center gap-2 mb-1.5">
+                        <span id="supabaseStatusDot" class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+                        <span class="font-semibold text-white font-mono text-[10px]">SUPABASE SERVER</span>
+                    </div>
+                    <p id="supabaseStatusText" class="text-slate-400 text-[10px] break-all leading-tight">Chưa kết nối. Vui lòng cấu hình API Key.</p>
+                </div>
+                <button onclick="openConfigModal()" class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-500/10 to-amber-500/20 hover:from-amber-500 hover:to-amber-600 hover:text-black border border-amber-500/30 text-amber-500 font-bold text-xs rounded-lg transition-all">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>CẤU HÌNH KẾT NỐI</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN WORKSPACE -->
+        <main class="flex-1 flex flex-col bg-[#0B0A0F] overflow-y-auto">
+            
+            <!-- HEADER BAR -->
+            <header class="h-16 border-b border-[#1F1E24] bg-[#111015]/80 backdrop-blur-md px-8 flex items-center justify-between sticky top-0 z-40 shrink-0">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs bg-amber-500/10 text-amber-500 border border-amber-500/20 font-bold px-2.5 py-1 rounded font-mono">DATABASE TRỰC TUYẾN</span>
+                    <p class="text-sm text-slate-400">Hệ thống quản lý nội dung ShortFlix độc lập</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="refreshData()" class="p-2.5 bg-[#1A191E] hover:bg-[#25242A] border border-[#2E2B38] rounded-lg text-slate-300 hover:text-white transition-all text-xs flex items-center gap-2">
+                        <i id="refreshIcon" class="fa-solid fa-arrows-rotate"></i>
+                        <span>Làm mới dữ liệu</span>
+                    </button>
+                    <div class="h-6 w-[1px] bg-[#1F1E24]"></div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-[#2E2B38] text-white text-xs font-bold font-mono">
+                            AD
+                        </div>
+                        <span class="text-xs font-semibold text-white">Administrator</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- TAB CONTENT CONTAINER -->
+            <div class="flex-1 p-8 overflow-y-auto">
+                
+                <!-- TAB: DASHBOARD -->
+                <div id="tab-dashboard" class="tab-content space-y-8">
+                    <!-- Title block -->
+                    <div>
+                        <h2 class="text-2xl font-extrabold text-white">Bảng Thống Kê Tổng Quan</h2>
+                        <p class="text-slate-400 text-sm mt-1">Số liệu thống kê thời gian thực từ đám mây Supabase PostgreSQL.</p>
+                    </div>
+
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div class="bg-[#111015] p-6 rounded-2xl border border-[#1F1E24] shadow-xl relative overflow-hidden group">
+                            <div class="absolute -right-4 -bottom-4 text-[#1F1E24] text-8xl font-black group-hover:scale-110 transition-all duration-300"><i class="fa-solid fa-clapperboard"></i></div>
+                            <h3 class="text-slate-400 text-xs uppercase tracking-wider font-bold">Tổng Số Phim</h3>
+                            <p id="stat-dramas" class="text-3xl font-extrabold text-white mt-2 font-mono">0</p>
+                            <p class="text-[11px] text-amber-500 mt-2 font-semibold"><i class="fa-solid fa-circle text-[6px] mr-1.5"></i>Đang hiển thị trên app</p>
+                        </div>
+                        <div class="bg-[#111015] p-6 rounded-2xl border border-[#1F1E24] shadow-xl relative overflow-hidden group">
+                            <div class="absolute -right-4 -bottom-4 text-[#1F1E24] text-8xl font-black group-hover:scale-110 transition-all duration-300"><i class="fa-solid fa-circle-play"></i></div>
+                            <h3 class="text-slate-400 text-xs uppercase tracking-wider font-bold">Tổng Số Tập Phim</h3>
+                            <p id="stat-episodes" class="text-3xl font-extrabold text-amber-500 mt-2 font-mono">0</p>
+                            <p class="text-[11px] text-emerald-500 mt-2 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Hỗ trợ MP4, HLS Streaming</p>
+                        </div>
+                        <div class="bg-[#111015] p-6 rounded-2xl border border-[#1F1E24] shadow-xl relative overflow-hidden group">
+                            <div class="absolute -right-4 -bottom-4 text-[#1F1E24] text-8xl font-black group-hover:scale-110 transition-all duration-300"><i class="fa-solid fa-users"></i></div>
+                            <h3 class="text-slate-400 text-xs uppercase tracking-wider font-bold">Người Dùng Hoạt Động</h3>
+                            <p id="stat-users" class="text-3xl font-extrabold text-rose-500 mt-2 font-mono">0</p>
+                            <p class="text-[11px] text-slate-400 mt-2 font-semibold"><i class="fa-solid fa-id-card mr-1"></i>Tự động đồng bộ Realtime</p>
+                        </div>
+                        <div class="bg-[#111015] p-6 rounded-2xl border border-[#1F1E24] shadow-xl relative overflow-hidden group">
+                            <div class="absolute -right-4 -bottom-4 text-[#1F1E24] text-8xl font-black group-hover:scale-110 transition-all duration-300"><i class="fa-solid fa-key"></i></div>
+                            <h3 class="text-slate-400 text-xs uppercase tracking-wider font-bold">Tập Phim Đã Mở Khóa</h3>
+                            <p id="stat-unlocks" class="text-3xl font-extrabold text-emerald-500 mt-2 font-mono">0</p>
+                            <p class="text-[11px] text-emerald-500 mt-2 font-semibold"><i class="fa-solid fa-wallet mr-1"></i>Đổi từ xu thật của người dùng</p>
+                        </div>
+                    </div>
+
+                    <!-- Quick info database schema -->
+                    <div class="bg-gradient-to-r from-amber-500/5 to-rose-500/5 p-6 rounded-2xl border border-amber-500/10 shadow-xl">
+                        <h3 class="text-white font-bold text-base flex items-center gap-2">
+                            <i class="fa-solid fa-circle-nodes text-amber-500"></i>
+                            Cách thức kết nối với Android App
+                        </h3>
+                        <p class="text-slate-300 text-sm mt-1.5 leading-relaxed">
+                            Web Admin này kết nối trực tiếp đến database <b>Supabase</b> của bạn. Android App ShortFlix cũng sẽ được đổi từ việc lưu SQLite cục bộ sang kết nối qua API Supabase / SDK để đồng bộ hoàn chỉnh.
+                        </p>
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            <span class="text-xs bg-[#1A191E] border border-[#2E2B38] text-slate-300 px-3 py-1.5 rounded-lg"><b class="text-amber-500 font-mono">Dramas:</b> Quản lý Phim, Thể loại, Poster</span>
+                            <span class="text-xs bg-[#1A191E] border border-[#2E2B38] text-slate-300 px-3 py-1.5 rounded-lg"><b class="text-amber-500 font-mono">Episodes:</b> Video link (MP4/M3U8), Tập Free/VIP</span>
+                            <span class="text-xs bg-[#1A191E] border border-[#2E2B38] text-slate-300 px-3 py-1.5 rounded-lg"><b class="text-amber-500 font-mono">Profiles:</b> Nickname, Avatar, Trạng thái VIP</span>
+                            <span class="text-xs bg-[#1A191E] border border-[#2E2B38] text-slate-300 px-3 py-1.5 rounded-lg"><b class="text-amber-500 font-mono">Balances:</b> Thay đổi ví Xu & Lượt quay</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: DRAMAS -->
+                <div id="tab-dramas" class="tab-content hidden space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-2xl font-extrabold text-white">Quản Lý Phim Bộ (Series)</h2>
+                            <p class="text-slate-400 text-sm mt-1">Tạo, cập nhật và xóa thông tin các phim truyền hình ngắn trên hệ thống.</p>
+                        </div>
+                        <button onclick="openDramaModal()" class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-extrabold text-xs tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/10">
+                            <i class="fa-solid fa-plus text-sm"></i>
+                            <span>THÊM PHIM MỚI</span>
+                        </button>
+                    </div>
+
+                    <!-- Search and filter -->
+                    <div class="bg-[#111015] p-4 rounded-xl border border-[#1F1E24] flex gap-4">
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-magnifying-glass text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="dramaSearch" onkeyup="filterDramasTable()" placeholder="Tìm kiếm phim theo tên hoặc thể loại..." class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <!-- Table List -->
+                    <div class="bg-[#111015] rounded-xl border border-[#1F1E24] overflow-hidden">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-[#16151B] border-b border-[#1F1E24] text-slate-400 uppercase tracking-wider font-bold">
+                                <tr>
+                                    <th class="px-6 py-4 w-16 text-center">ID</th>
+                                    <th class="px-6 py-4">Bìa phim</th>
+                                    <th class="px-6 py-4">Tên Phim</th>
+                                    <th class="px-6 py-4">Thể Loại</th>
+                                    <th class="px-6 py-4 text-center">Tổng Tập</th>
+                                    <th class="px-6 py-4 text-center">Lượt Xem</th>
+                                    <th class="px-6 py-4 text-center">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dramasTableBody" class="divide-y divide-[#1F1E24]">
+                                <tr>
+                                    <td colspan="7" class="px-6 py-12 text-center text-slate-500">Đang tải dữ liệu phim từ Supabase...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB: EPISODES -->
+                <div id="tab-episodes" class="tab-content hidden space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-2xl font-extrabold text-white">Quản Lý Tập Phim</h2>
+                            <p class="text-slate-400 text-sm mt-1">Cấu hình link video và trạng thái khóa/miễn phí của từng tập phim.</p>
+                        </div>
+                        <button onclick="openEpisodeModal()" class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white font-extrabold text-xs tracking-wider rounded-xl transition-all shadow-lg shadow-rose-500/10">
+                            <i class="fa-solid fa-plus text-sm"></i>
+                            <span>THÊM TẬP PHIM MỚI</span>
+                        </button>
+                    </div>
+
+                    <!-- Select drama series first -->
+                    <div class="bg-[#111015] p-5 rounded-xl border border-[#1F1E24] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="space-y-1">
+                            <label class="text-slate-400 text-[11px] font-bold uppercase tracking-wider">Chọn phim bộ để lọc danh sách tập:</label>
+                            <select id="episodeDramaSelectFilter" onchange="loadEpisodesForDrama()" class="bg-[#1A191E] border border-[#2E2B38] text-white rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-amber-500 w-full md:w-80">
+                                <option value="">-- Chọn Phim --</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs text-slate-400">
+                            <i class="fa-solid fa-circle-info text-amber-500"></i>
+                            <span>Tập phim 1-3 nên để <b>Miễn phí</b> để tối ưu chuyển đổi người dùng.</span>
+                        </div>
+                    </div>
+
+                    <!-- Table List -->
+                    <div class="bg-[#111015] rounded-xl border border-[#1F1E24] overflow-hidden">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-[#16151B] border-b border-[#1F1E24] text-slate-400 uppercase tracking-wider font-bold">
+                                <tr>
+                                    <th class="px-6 py-4 w-16 text-center font-mono">TẬP SỐ</th>
+                                    <th class="px-6 py-4">Tên Tập</th>
+                                    <th class="px-6 py-4">Đường Dẫn Video (URL)</th>
+                                    <th class="px-6 py-4 text-center">Trạng Thái</th>
+                                    <th class="px-6 py-4 text-center">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="episodesTableBody" class="divide-y divide-[#1F1E24]">
+                                <tr>
+                                    <td colspan="5" class="px-6 py-12 text-center text-slate-500">Vui lòng chọn một phim bộ ở trên để hiển thị danh sách tập phim.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB: USERS -->
+                <div id="tab-users" class="tab-content hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-extrabold text-white">Người Dùng & Số Dư Ví</h2>
+                        <p class="text-slate-400 text-sm mt-1">Điều chỉnh trực tiếp thông tin tài khoản, danh hiệu, cấp VIP và số dư xu/quay trong Room/PostgreSQL.</p>
+                    </div>
+
+                    <!-- Search and filter -->
+                    <div class="bg-[#111015] p-4 rounded-xl border border-[#1F1E24]">
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="userSearch" onkeyup="filterUsersTable()" placeholder="Tìm kiếm người dùng theo ID, Nickname hoặc SĐT..." class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <!-- Table List -->
+                    <div class="bg-[#111015] rounded-xl border border-[#1F1E24] overflow-hidden">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-[#16151B] border-b border-[#1F1E24] text-slate-400 uppercase tracking-wider font-bold">
+                                <tr>
+                                    <th class="px-6 py-4">Mascot & Nickname</th>
+                                    <th class="px-6 py-4 font-mono">User ID</th>
+                                    <th class="px-6 py-4">Số Điện Thoại</th>
+                                    <th class="px-6 py-4 text-center">Cấp VIP</th>
+                                    <th class="px-6 py-4 text-center">Xu (Coins)</th>
+                                    <th class="px-6 py-4 text-center">Quay (Spins)</th>
+                                    <th class="px-6 py-4 text-center">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody" class="divide-y divide-[#1F1E24]">
+                                <tr>
+                                    <td colspan="7" class="px-6 py-12 text-center text-slate-500">Đang tải danh sách người dùng từ Supabase...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL: API CONFIGURATION (SAVED IN LOCALSTORAGE) -->
+    <div id="configModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-[#111015] border border-[#2E2B38] rounded-2xl w-full max-w-lg shadow-2xl relative overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-[#1F1E24] flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-nodes text-amber-500 text-lg"></i>
+                    <h3 class="font-extrabold text-white text-base">Cấu Hình Kết Nối Supabase</h3>
+                </div>
+                <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <div class="p-6 space-y-4 overflow-y-auto">
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Nhập thông tin xác thực dự án <b>Supabase</b> của bạn để kết nối trực tiếp đến database. Các thông tin này được lưu trữ an toàn trong LocalStorage của trình duyệt của bạn.
+                </p>
+
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Supabase URL:</label>
+                    <input type="text" id="inputUrl" placeholder="https://your-project.supabase.co" class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono">
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Supabase API Key (service_role or anon_key):</label>
+                    <input type="password" id="inputKey" placeholder="your-supabase-service-role-or-anon-key" class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono">
+                    <p class="text-[10px] text-rose-500 font-semibold leading-tight">
+                        * Mách nhỏ: Nên sử dụng 'service_role' key để có đầy đủ quyền Thêm/Sửa/Xóa mà không bị hạn chế bởi chính sách RLS.
+                    </p>
+                </div>
+            </div>
+
+            <div class="p-6 border-t border-[#1F1E24] bg-[#16151B] flex justify-end gap-3">
+                <button onclick="closeConfigModal()" class="px-4 py-2 bg-transparent hover:bg-[#1A191E] border border-[#2E2B38] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all">Huỷ bỏ</button>
+                <button onclick="saveConnectionSettings()" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg text-xs font-extrabold tracking-wider transition-all shadow-lg shadow-amber-500/10">LƯU CẤU HÌNH</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: DRAMA EDIT/ADD -->
+    <div id="dramaModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-[#111015] border border-[#2E2B38] rounded-2xl w-full max-w-xl shadow-2xl relative overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-[#1F1E24] flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-clapperboard text-amber-500 text-lg"></i>
+                    <h3 id="dramaModalTitle" class="font-extrabold text-white text-base">Thêm Phim Mới</h3>
+                </div>
+                <button onclick="closeDramaModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <form id="dramaForm" onsubmit="saveDrama(event)" class="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+                <input type="hidden" id="formDramaId">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Tên Phim bộ:</label>
+                        <input type="text" id="formDramaTitle" required placeholder="Nhập tên phim..." class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Thể loại:</label>
+                        <input type="text" id="formDramaGenre" placeholder="Ngôn Tình, Cổ Trang, Hiện Đại..." class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Đường Dẫn Bìa Phim (Cover Image URL):</label>
+                    <input type="text" id="formDramaCover" required placeholder="https://images.unsplash.com/... hoặc ảnh liên kết" class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Tổng Số Tập Phim:</label>
+                        <input type="number" min="1" id="formDramaCount" required value="10" class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Lượt Xem Ban Đầu (Mặc định):</label>
+                        <input type="number" min="0" id="formDramaViews" required value="0" class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Nội dung tóm tắt phim:</label>
+                    <textarea id="formDramaDesc" rows="3" placeholder="Mô tả nội dung cốt truyện..." class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 resize-none"></textarea>
+                </div>
+
+                <div class="p-4 bg-[#16151B] border border-[#1F1E24] rounded-lg flex gap-3 text-xs text-slate-400">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5"></i>
+                    <span>Hệ thống sẽ đồng bộ ảnh bìa này lập tức lên thiết bị người dùng. Hãy chắc chắn link ảnh là công khai và ổn định.</span>
+                </div>
+
+                <div class="border-t border-[#1F1E24] pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="closeDramaModal()" class="px-4 py-2 bg-transparent hover:bg-[#1A191E] border border-[#2E2B38] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all">Huỷ bỏ</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg text-xs font-extrabold tracking-wider transition-all shadow-lg shadow-amber-500/10">LƯU THÔNG TIN</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: EPISODE EDIT/ADD -->
+    <div id="episodeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-[#111015] border border-[#2E2B38] rounded-2xl w-full max-w-xl shadow-2xl relative overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-[#1F1E24] flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-play text-rose-500 text-lg"></i>
+                    <h3 id="episodeModalTitle" class="font-extrabold text-white text-base">Thêm Tập Phim</h3>
+                </div>
+                <button onclick="closeEpisodeModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <form id="episodeForm" onsubmit="saveEpisode(event)" class="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+                <input type="hidden" id="formEpisodeId">
+
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Chọn Phim Bộ (Drama series):</label>
+                    <select id="formEpisodeDramaId" required class="w-full bg-[#1A191E] border border-[#2E2B38] text-white rounded-lg px-3.5 py-2 text-xs focus:outline-none focus:border-rose-500">
+                        <option value="">-- Chọn Phim --</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Tập Số:</label>
+                        <input type="number" min="1" id="formEpisodeNumber" required value="1" class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500 font-mono">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Tên Tập (Tùy chọn):</label>
+                        <input type="text" id="formEpisodeTitle" placeholder="Ví dụ: Định mệnh bắt đầu..." class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Đường Dẫn Video (Hỗ trợ MP4 / M3U8):</label>
+                    <input type="text" id="formEpisodeVideoUrl" required placeholder="https://commondatastorage.googleapis.com/...mp4" class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500 font-mono">
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Mức độ tiếp cận:</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2.5 bg-[#1A191E] border border-[#2E2B38] hover:border-emerald-500/50 px-4 py-2.5 rounded-lg flex-1 cursor-pointer transition-all">
+                            <input type="radio" name="formEpisodeIsFree" id="freeYes" value="true" checked class="accent-emerald-500">
+                            <span class="text-xs text-white font-semibold">Miễn Phí (Free)</span>
+                        </label>
+                        <label class="flex items-center gap-2.5 bg-[#1A191E] border border-[#2E2B38] hover:border-rose-500/50 px-4 py-2.5 rounded-lg flex-1 cursor-pointer transition-all">
+                            <input type="radio" name="formEpisodeIsFree" id="freeNo" value="false" class="accent-rose-500">
+                            <span class="text-xs text-white font-semibold">Khóa (Yêu cầu Xu)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="border-t border-[#1F1E24] pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="closeEpisodeModal()" class="px-4 py-2 bg-transparent hover:bg-[#1A191E] border border-[#2E2B38] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all">Huỷ bỏ</button>
+                    <button type="submit" class="px-5 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-extrabold tracking-wider transition-all shadow-lg shadow-rose-500/10">LƯU TẬP PHIM</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: EDIT USER BALANCE / COINS & SPINS -->
+    <div id="userModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-[#111015] border border-[#2E2B38] rounded-2xl w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-[#1F1E24] flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-users-gear text-rose-500 text-lg"></i>
+                    <h3 class="font-extrabold text-white text-base">Điều Chỉnh Ví & Tài Khoản</h3>
+                </div>
+                <button onclick="closeUserModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <form id="userForm" onsubmit="saveUserAdjustments(event)" class="p-6 space-y-4">
+                <input type="hidden" id="formUserId">
+
+                <div class="p-4 bg-[#1A191E] rounded-xl border border-[#2E2B38] flex items-center gap-3">
+                    <span id="formUserAvatar" class="text-3xl bg-[#25242A] p-2 rounded-full border border-[#2E2B38]">🦊</span>
+                    <div>
+                        <h4 id="formUserNickname" class="font-extrabold text-white text-sm">N/A</h4>
+                        <p id="formUserDisplayId" class="text-[10px] text-slate-400 font-mono break-all leading-tight">UID: N/A</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-slate-300 text-[10px] font-bold uppercase tracking-wider">Số lượng Xu (Coins):</label>
+                        <input type="number" min="0" id="formUserCoins" required class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-slate-300 text-[10px] font-bold uppercase tracking-wider">Lượt quay thưởng:</label>
+                        <input type="number" min="0" id="formUserSpins" required class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-[10px] font-bold uppercase tracking-wider">Danh hiệu VIP hiển thị:</label>
+                    <input type="text" id="formUserVipLevel" placeholder="THÀNH VIÊN VIP PREMIUM..." class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500">
+                </div>
+
+                <div class="flex items-center justify-between p-3 bg-[#16151B] border border-[#1F1E24] rounded-lg">
+                    <div>
+                        <span class="text-white text-xs font-bold block">Kích hoạt Thẻ VIP</span>
+                        <span class="text-[10px] text-slate-400">Xem không quảng cáo và ưu đãi đặc quyền</span>
+                    </div>
+                    <input type="checkbox" id="formUserIsVip" class="w-4 h-4 accent-amber-500 cursor-pointer">
+                </div>
+
+                <div class="border-t border-[#1F1E24] pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="closeUserModal()" class="px-4 py-2 bg-transparent hover:bg-[#1A191E] border border-[#2E2B38] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all">Huỷ bỏ</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg text-xs font-extrabold tracking-wider transition-all shadow-lg shadow-amber-500/10">XÁC NHẬN CẬP NHẬT</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CORE JAVASCRIPT CONNECTIVITY MODULES -->
+    <script>
+        // Inline fail-safe modal toggles to ensure "Cấu hình kết nối" button works 100% of the time,
+        // even if app.js is still loading, failed to load, or blocked.
+        function openConfigModal() {
+            try {
+                let url = localStorage.getItem('supabase_url');
+                if (!url) url = 'https://jwzqxbzncuotjrjujhkf.supabase.co';
+                document.getElementById('inputUrl').value = url;
+                document.getElementById('inputKey').value = localStorage.getItem('supabase_key') || '';
+            } catch(e) {
+                console.warn("Storage access error:", e);
+                document.getElementById('inputUrl').value = 'https://jwzqxbzncuotjrjujhkf.supabase.co';
+            }
+            const modal = document.getElementById('configModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+        function closeConfigModal() {
+            const modal = document.getElementById('configModal');
+            if (modal) modal.classList.add('hidden');
+        }
+    </script>
+    <script src="app.js?v=1.5"></script>
+</body>
+</html>

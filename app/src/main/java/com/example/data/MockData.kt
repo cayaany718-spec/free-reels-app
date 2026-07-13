@@ -13,7 +13,7 @@ object MockData {
             episodesCount = 6,
             isHot = true,
             isTrending = true,
-            author = "FreeReels Studio",
+            author = "MovieBox Studio",
             isDubbed = true,
             subtag = "Báo thù"
         ),
@@ -43,7 +43,7 @@ object MockData {
             episodesCount = 5,
             isHot = true,
             isTrending = true,
-            author = "FreeReels Studio",
+            author = "MovieBox Studio",
             isDubbed = true,
             subtag = "Báo thù"
         ),
@@ -133,7 +133,7 @@ object MockData {
             episodesCount = 6,
             isHot = true,
             isTrending = true,
-            author = "FreeReels Studio",
+            author = "MovieBox Studio",
             isDubbed = true,
             subtag = "Nhận thưởng",
             overlayBadge = "Nhận thưởng"
@@ -150,7 +150,7 @@ object MockData {
             episodesCount = 6,
             isHot = true,
             isTrending = true,
-            author = "FreeReels Anime",
+            author = "MovieBox Anime",
             isDubbed = true,
             subtag = "Huyền huyễn"
         ),
@@ -165,7 +165,7 @@ object MockData {
             episodesCount = 6,
             isHot = true,
             isTrending = true,
-            author = "FreeReels Anime",
+            author = "MovieBox Anime",
             isDubbed = true,
             subtag = "Tu tiên"
         ),
@@ -180,7 +180,7 @@ object MockData {
             episodesCount = 6,
             isHot = false,
             isTrending = true,
-            author = "FreeReels Anime",
+            author = "MovieBox Anime",
             isDubbed = false,
             subtag = "Huyền huyễn"
         )

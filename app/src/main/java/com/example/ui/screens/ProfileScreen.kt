@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,7 +31,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.graphicsLayer
 import coil.compose.AsyncImage
 import com.example.shortdrama.R
 import com.example.data.Drama
@@ -89,6 +98,18 @@ fun ProfileScreen(
     // Social Login loading state
     var isSocialLoading by remember { mutableStateOf(false) }
     var socialPlatform by remember { mutableStateOf("") }
+    var showPhoneLogin by remember { mutableStateOf(false) }
+
+    // Custom Google and Facebook login states
+    var showGoogleChooser by remember { mutableStateOf(false) }
+    var isGoogleConnecting by remember { mutableStateOf(false) }
+    var showGoogleNotificationBanner by remember { mutableStateOf(false) }
+    var lastNotifiedGoogleEmail by remember { mutableStateOf("") }
+
+    var showFacebookChooser by remember { mutableStateOf(false) }
+    var isFacebookConnecting by remember { mutableStateOf(false) }
+    var showFacebookNotificationBanner by remember { mutableStateOf(false) }
+    var lastNotifiedFacebookName by remember { mutableStateOf("") }
 
     // Countdown Timer logic
     LaunchedEffect(isTimerRunning, timeLeft) {
@@ -107,6 +128,7 @@ fun ProfileScreen(
     
     // Dialog and settings states
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showAdminPanel by remember { mutableStateOf(false) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var showHelpDialog by remember { mutableStateOf(false) }
     var feedbackText by remember { mutableStateOf("") }
@@ -122,230 +144,501 @@ fun ProfileScreen(
         }
     }
 
-    if (!isLoggedIn) {
-        // --- 1. SUPER CUTE & LOVELY LOGIN SCREEN (CHƯA ĐĂNG NHẬP) ---
-        LazyColumn(
-            modifier = modifier
-                .fillMaxSize()
-                .background(Color(0xFF0F0F11)) // Immersive dark cinematic backdrop
-                .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            item {
+    Box(modifier = modifier.fillMaxSize()) {
+        if (!isLoggedIn) {
+            // --- 1. SUPER CUTE & LOVELY IMMERSIVE LOGIN SCREEN (CHƯA ĐĂNG NHẬP) ---
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF0F0F11))
+            ) {
+            // 1. Poster Grid Background
+            PosterGridBackground(modifier = Modifier.fillMaxSize())
+            
+            // 2. Black Vignette/Scrim Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.3f),
+                                Color(0xFF0F0F11).copy(alpha = 0.85f),
+                                Color(0xFF0F0F11)
+                            )
+                        )
+                    )
+            )
+            
+            // 3. Immersive Content Column (scrollable/fully responsive)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .systemBarsPadding()
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // TOP spacer / layout adjustment
                 Spacer(modifier = Modifier.height(30.dp))
                 
-                // Cute Logo and Heading
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
+                // CENTER: Brand Identity
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    // Speech Bubble over Logo
+                    Box(
+                        modifier = Modifier
+                            .padding(bottom = 16.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("🦊🍿", fontSize = 20.sp)
+                            Text(
+                                text = "Đăng nhập nhận ngay 100 Xu miễn phí! 🎁",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(10.dp))
+                    MovieBoxLogoIcon(modifier = Modifier.size(96.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = viewModel.getString("app_title"),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White
+                        text = "MovieBox",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        letterSpacing = 1.sp
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "🍿✨",
-                        fontSize = 26.sp
+                        text = "Mạng xã hội phim ngắn thịnh hành nhất 🎬✨",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
                     )
                 }
                 
-                Text(
-                    text = viewModel.getString("app_subtitle"),
-                    fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.6f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                )
-
-                // Interactive Mascot Reaction section with speech bubble!
-                val currentMascot = when {
-                    activeField == "password" -> "🫣"
-                    activeField == "otp" -> "⏳"
-                    isTimerRunning -> "⏰"
-                    else -> selectedMascotEmoji
-                }
-
-                val mascotBubbleText = when {
-                    activeField == "password" -> "Tớ nhắm mắt rồi, bạn nhập mật khẩu an toàn đi nhé! 🫣"
-                    activeField == "otp" -> "Nhập mã OTP 4 chữ số gửi qua SMS nha! ⏳"
-                    activeField == "nickname" -> "Biệt danh này nghe rất phong cách và đáng yêu! 🥰"
-                    activeField == "phone" -> "Số điện thoại giúp bạn nhận mã ưu đãi cực khủng! 📞"
-                    else -> "Chào bạn yêu! Hãy trải nghiệm xem phim không giới hạn nhé! 🍿💖"
-                }
-
+                // BOTTOM: Buttons, Secondary Option, and Terms
                 Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Speech bubble over mascot
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(PrimaryCoral.copy(alpha = 0.15f))
-                            .border(1.dp, PrimaryCoral.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = mascotBubbleText,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.widthIn(max = 280.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Mascot display circle with sparkling gradients
-                    Box(
-                        modifier = Modifier
-                            .size(100.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(PrimaryCoral, PrimaryGold)
-                                )
-                            )
-                            .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = currentMascot,
-                            fontSize = 54.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Beautiful interactive form
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(DarkSurface)
-                        .border(1.dp, BorderColor, RoundedCornerShape(20.dp))
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    // Segmented Tabs: OTP Login vs Password Login
-                    Row(
+                    // Facebook Login Button
+                    Button(
+                        onClick = {
+                            showFacebookChooser = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
+                        shape = RoundedCornerShape(28.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(SurfaceVariant)
-                            .padding(4.dp)
+                            .height(56.dp)
+                            .testTag("facebook_login_button"),
+                        contentPadding = PaddingValues(horizontal = 24.dp)
                     ) {
-                        listOf("Mã OTP ⚡", "Mật khẩu 🔒").forEachIndexed { index, title ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (loginMethod == index) PrimaryCoral else Color.Transparent)
-                                    .clickable { loginMethod = index }
-                                    .padding(vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = title,
-                                    color = if (loginMethod == index) Color.White else Color.White.copy(alpha = 0.6f),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            FacebookLogo(modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Đăng nhập bằng Facebook",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Phone Number Field (common for both)
-                    Column {
+                    
+                    // Google Login Button
+                    Button(
+                        onClick = {
+                            showGoogleChooser = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(28.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .testTag("google_login_button"),
+                        border = BorderStroke(1.dp, Color(0xFFE0E0E0)),
+                        contentPadding = PaddingValues(horizontal = 24.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            GoogleLogo(modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Đăng nhập bằng Google",
+                                color = Color(0xFF1F1D23),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    // Secondary Link: Phone Login
+                    Text(
+                        text = "Hoặc đăng nhập bằng số điện thoại / mật khẩu 🔒",
+                        color = PrimaryCoral,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clickable { showPhoneLogin = true }
+                            .padding(vertical = 4.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Terms of Service & Privacy Policy Notice
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = viewModel.getString("login_phone_label"),
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 6.dp)
+                            text = "Nếu tiếp tục, bạn đồng ý với ",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 10.sp
                         )
-                        OutlinedTextField(
-                            value = loginPhone,
-                            onValueChange = { input ->
-                                if (input.all { it.isDigit() }) {
-                                    loginPhone = input
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { state -> 
-                                    if (state.isFocused) activeField = "phone" 
-                                    else if (activeField == "phone") activeField = "" 
-                                }
-                                .testTag("login_phone_input"),
-                            placeholder = { Text(viewModel.getString("login_phone_placeholder"), fontSize = 12.sp, color = Color.Gray) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Phone,
-                                    contentDescription = "Phone Icon",
-                                    tint = PrimaryCoral
-                                )
-                            },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = PrimaryCoral,
-                                unfocusedBorderColor = BorderColor,
-                                focusedContainerColor = SurfaceVariant,
-                                unfocusedContainerColor = SurfaceVariant
-                            ),
-                            shape = RoundedCornerShape(12.dp)
+                        Text(
+                            text = "Điều khoản Sử dụng",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clickable {
+                                Toast.makeText(context, "Điều khoản sử dụng: Xem phim hợp pháp và tôn trọng bản quyền.", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        Text(
+                            text = " • ",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = "Chính sách Bảo mật",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clickable {
+                                Toast.makeText(context, "Chính sách bảo mật: Thông tin của bạn được bảo vệ tuyệt đối.", Toast.LENGTH_SHORT).show()
+                            }
                         )
                     }
+                }
+            }
+        }
 
-                    // Conditional credential fields based on tab
-                    if (loginMethod == 0) {
-                        // OTP Method
-                        Column {
-                            Text(
-                                text = "Mã xác minh (OTP)",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            )
+        // Phone Login Dialog/Modal - Preserves existing authentication and mascot flows beautifully!
+        if (showPhoneLogin) {
+            AlertDialog(
+                onDismissRequest = { showPhoneLogin = false },
+                confirmButton = {},
+                dismissButton = {},
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+                containerColor = Color(0xFF16151A),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(24.dp)),
+                text = {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        item {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = selectedMascotEmoji,
+                                        fontSize = 24.sp
+                                    )
+                                    Text(
+                                        text = "Đăng nhập nhanh 🍿",
+                                        color = Color.White,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { showPhoneLogin = false },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close dialog",
+                                        tint = Color.White.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+                        }
+
+                        item {
+                            // Segmented Tabs: OTP Login vs Password Login
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SurfaceVariant)
+                                    .padding(4.dp)
+                            ) {
+                                listOf("Mã OTP ⚡", "Mật khẩu 🔒").forEachIndexed { index, title ->
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (loginMethod == index) PrimaryCoral else Color.Transparent)
+                                            .clickable { loginMethod = index }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = title,
+                                            color = if (loginMethod == index) Color.White else Color.White.copy(alpha = 0.6f),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Phone Number field
+                        item {
+                            Column {
+                                Text(
+                                    text = viewModel.getString("login_phone_label"),
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
                                 OutlinedTextField(
-                                    value = otpCode,
+                                    value = loginPhone,
                                     onValueChange = { input ->
-                                        if (input.length <= 6 && input.all { it.isDigit() }) {
-                                            otpCode = input
+                                        if (input.all { it.isDigit() }) {
+                                            loginPhone = input
                                         }
                                     },
                                     modifier = Modifier
-                                        .weight(1.5f)
+                                        .fillMaxWidth()
                                         .onFocusChanged { state -> 
-                                            if (state.isFocused) activeField = "otp" 
-                                            else if (activeField == "otp") activeField = "" 
+                                            if (state.isFocused) activeField = "phone" 
+                                            else if (activeField == "phone") activeField = "" 
                                         }
-                                        .testTag("login_otp_input"),
-                                    placeholder = { Text("Nhập OTP (Thử: 1234)", fontSize = 12.sp, color = Color.Gray) },
+                                        .testTag("login_phone_input"),
+                                    placeholder = { Text(viewModel.getString("login_phone_placeholder"), fontSize = 12.sp, color = Color.Gray) },
                                     singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.Default.Lock,
-                                            contentDescription = "OTP Icon",
+                                            imageVector = Icons.Default.Phone,
+                                            contentDescription = "Phone Icon",
+                                            tint = PrimaryCoral
+                                        )
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = PrimaryCoral,
+                                        unfocusedBorderColor = BorderColor,
+                                        focusedContainerColor = SurfaceVariant,
+                                        unfocusedContainerColor = SurfaceVariant
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                            }
+                        }
+
+                        // Conditional credential fields based on tab
+                        item {
+                            if (loginMethod == 0) {
+                                // OTP Method
+                                Column {
+                                    Text(
+                                        text = "Mã xác minh (OTP)",
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 6.dp)
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        OutlinedTextField(
+                                            value = otpCode,
+                                            onValueChange = { input ->
+                                                if (input.length <= 6 && input.all { it.isDigit() }) {
+                                                    otpCode = input
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .weight(1.3f)
+                                                .onFocusChanged { state -> 
+                                                    if (state.isFocused) activeField = "otp" 
+                                                    else if (activeField == "otp") activeField = "" 
+                                                }
+                                                .testTag("login_otp_input"),
+                                            placeholder = { Text("Mã (Thử: 1234)", fontSize = 12.sp, color = Color.Gray) },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Lock,
+                                                    contentDescription = "OTP Icon",
+                                                    tint = PrimaryGold
+                                                )
+                                            },
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedBorderColor = PrimaryCoral,
+                                                unfocusedBorderColor = BorderColor,
+                                                focusedContainerColor = SurfaceVariant,
+                                                unfocusedContainerColor = SurfaceVariant
+                                            ),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+
+                                        Button(
+                                            onClick = {
+                                                if (loginPhone.length < 9) {
+                                                    Toast.makeText(context, "Vui lòng nhập số điện thoại hợp lệ trước!", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    timeLeft = 60
+                                                    isTimerRunning = true
+                                                    Toast.makeText(context, "Mã OTP dùng thử đã được gửi! (Mã của bạn: 1234)", Toast.LENGTH_LONG).show()
+                                                }
+                                            },
+                                            enabled = !isTimerRunning,
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (isTimerRunning) Color.Gray else PrimaryCoral,
+                                                disabledContainerColor = Color.White.copy(alpha = 0.1f)
+                                            ),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .weight(1.1f)
+                                                .height(54.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isTimerRunning) "${timeLeft}s" else "Gửi mã",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isTimerRunning) Color.White.copy(alpha = 0.6f) else Color.White
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Password Method
+                                Column {
+                                    Text(
+                                        text = "Mật khẩu an toàn",
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 6.dp)
+                                    )
+                                    OutlinedTextField(
+                                        value = loginPassword,
+                                        onValueChange = { loginPassword = it },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .onFocusChanged { state -> 
+                                                if (state.isFocused) activeField = "password" 
+                                                else if (activeField == "password") activeField = "" 
+                                            }
+                                            .testTag("login_password_input"),
+                                        placeholder = { Text("Mật khẩu (tối thiểu 6 ký tự)", fontSize = 12.sp, color = Color.Gray) },
+                                        singleLine = true,
+                                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.LockOpen,
+                                                contentDescription = "Password Icon",
+                                                tint = PrimaryGold
+                                            )
+                                        },
+                                        trailingIcon = {
+                                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                                Icon(
+                                                    imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                    contentDescription = "Toggle Visibility",
+                                                    tint = Color.Gray
+                                                )
+                                            }
+                                        },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White,
+                                            focusedBorderColor = PrimaryCoral,
+                                            unfocusedBorderColor = BorderColor,
+                                            focusedContainerColor = SurfaceVariant,
+                                            unfocusedContainerColor = SurfaceVariant
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Profile Setup: Nickname
+                        item {
+                            Column {
+                                Text(
+                                    text = viewModel.getString("login_nickname_label") + " (Không bắt buộc)",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
+                                OutlinedTextField(
+                                    value = loginNickname,
+                                    onValueChange = { loginNickname = it },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .onFocusChanged { state -> 
+                                            if (state.isFocused) activeField = "nickname" 
+                                            else if (activeField == "nickname") activeField = "" 
+                                        }
+                                        .testTag("login_nickname_input"),
+                                    placeholder = { Text("Để trống hệ thống sẽ tự tạo biệt danh", fontSize = 12.sp, color = Color.Gray) },
+                                    singleLine = true,
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Face,
+                                            contentDescription = "Nickname Icon",
                                             tint = PrimaryGold
                                         )
                                     },
@@ -359,369 +652,473 @@ fun ProfileScreen(
                                     ),
                                     shape = RoundedCornerShape(12.dp)
                                 )
+                            }
+                        }
 
-                                Button(
-                                    onClick = {
-                                        if (loginPhone.length < 9) {
-                                            Toast.makeText(context, "Vui lòng nhập số điện thoại hợp lệ trước!", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            timeLeft = 60
-                                            isTimerRunning = true
-                                            Toast.makeText(context, "Mã OTP dùng thử đã được gửi! (Mã của bạn: 1234)", Toast.LENGTH_LONG).show()
-                                        }
-                                    },
-                                    enabled = !isTimerRunning,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isTimerRunning) Color.Gray else PrimaryCoral,
-                                        disabledContainerColor = Color.White.copy(alpha = 0.1f)
-                                    ),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(54.dp)
+                        // Profile Setup: Mascot picker
+                        item {
+                            Column {
+                                Text(
+                                    text = "${viewModel.getString("login_mascot_label")}: $selectedMascotEmoji",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = if (isTimerRunning) "Gửi lại (${timeLeft}s)" else "Gửi mã",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isTimerRunning) Color.White.copy(alpha = 0.6f) else Color.White
-                                    )
+                                    val emojis = listOf("🦊", "🐱", "🐼", "🐰", "🐯", "🐨", "🦄", "🐹", "🦁", "🐧")
+                                    items(emojis) { emoji ->
+                                        val isSelected = selectedMascotEmoji == emoji
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isSelected) PrimaryCoral.copy(alpha = 0.25f) else SurfaceVariant)
+                                                .border(
+                                                    width = if (isSelected) 2.dp else 1.dp,
+                                                    color = if (isSelected) PrimaryCoral else BorderColor,
+                                                    shape = CircleShape
+                                                )
+                                                .clickable { selectedMascotEmoji = emoji }
+                                                .padding(4.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = emoji,
+                                                fontSize = 20.sp
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
-                    } else {
-                        // Password Method
-                        Column {
-                            Text(
-                                text = "Mật khẩu an toàn",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            )
-                            OutlinedTextField(
-                                value = loginPassword,
-                                onValueChange = { loginPassword = it },
+
+                        // Remember Me and Forgot Password Row
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Checkbox(
+                                        checked = rememberMe,
+                                        onCheckedChange = { rememberMe = it },
+                                        colors = CheckboxDefaults.colors(checkedColor = PrimaryCoral)
+                                    )
+                                    Text(
+                                        "Duy trì đăng nhập",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+
+                                Text(
+                                    text = "Quên mật khẩu?",
+                                    color = PrimaryCoral,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.clickable {
+                                        Toast.makeText(
+                                            context,
+                                            "Vui lòng sử dụng Đăng nhập OTP bằng số điện thoại nếu bạn quên mật khẩu!",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                )
+                            }
+                        }
+
+                        // Agreement Checkbox
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Checkbox(
+                                    checked = agreeTerms,
+                                    onCheckedChange = { agreeTerms = it },
+                                    colors = CheckboxDefaults.colors(checkedColor = PrimaryCoral)
+                                )
+                                Text(
+                                    text = "Tôi đồng ý với Điều khoản & Chính sách",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        // Submit Button
+                        item {
+                            Button(
+                                onClick = {
+                                    if (!agreeTerms) {
+                                        Toast.makeText(context, "Bạn phải đồng ý với Điều khoản sử dụng!", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    if (loginPhone.isBlank() || loginPhone.length < 9) {
+                                        Toast.makeText(context, viewModel.getString("alert_phone_invalid"), Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+
+                                    val finalNickname = if (loginNickname.isBlank()) {
+                                        val cuteNames = listOf("Mèo Cưng 🐱", "Gấu Xem Phim 🐼", "Cáo Tuyết 🦊", "Thỏ Ngoan 🐰", "Thần Phim Ngắn 🍿")
+                                        cuteNames.random()
+                                    } else {
+                                        loginNickname
+                                    }
+
+                                    if (loginMethod == 0) { // OTP
+                                        if (otpCode.isBlank()) {
+                                            Toast.makeText(context, "Vui lòng nhập mã OTP để xác minh!", Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                        if (otpCode != "1234" && otpCode != "8888") {
+                                            Toast.makeText(context, "Mã xác thực OTP chưa chính xác! Vui lòng thử mã 1234", Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                    } else { // Password
+                                        if (loginPassword.length < 6) {
+                                            Toast.makeText(context, "Mật khẩu phải chứa ít nhất 6 ký tự!", Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                    }
+
+                                    showPhoneLogin = false
+                                    viewModel.login(loginPhone, finalNickname, selectedMascotEmoji)
+                                    Toast.makeText(
+                                        context,
+                                        viewModel.getString("alert_login_success", finalNickname),
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral),
+                                shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .onFocusChanged { state -> 
-                                        if (state.isFocused) activeField = "password" 
-                                        else if (activeField == "password") activeField = "" 
-                                    }
-                                    .testTag("login_password_input"),
-                                placeholder = { Text("Nhập mật khẩu (tối thiểu 6 ký tự)", fontSize = 12.sp, color = Color.Gray) },
-                                singleLine = true,
-                                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.LockOpen,
-                                        contentDescription = "Password Icon",
-                                        tint = PrimaryGold
-                                    )
-                                },
-                                trailingIcon = {
-                                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                                        Icon(
-                                            imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                            contentDescription = "Toggle Visibility",
-                                            tint = Color.Gray
-                                        )
-                                    }
-                                },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = PrimaryCoral,
-                                    unfocusedBorderColor = BorderColor,
-                                    focusedContainerColor = SurfaceVariant,
-                                    unfocusedContainerColor = SurfaceVariant
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        }
-                    }
-
-                    // Profile Setup: Nickname (Optional / Auto-generated)
-                    Column {
-                        Text(
-                            text = viewModel.getString("login_nickname_label") + " (Không bắt buộc)",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        OutlinedTextField(
-                            value = loginNickname,
-                            onValueChange = { loginNickname = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { state -> 
-                                    if (state.isFocused) activeField = "nickname" 
-                                    else if (activeField == "nickname") activeField = "" 
-                                }
-                                .testTag("login_nickname_input"),
-                            placeholder = { Text("Để trống hệ thống sẽ tự tạo biệt danh ngẫu nhiên", fontSize = 12.sp, color = Color.Gray) },
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Face,
-                                    contentDescription = "Nickname Icon",
-                                    tint = PrimaryGold
+                                    .height(50.dp)
+                                    .testTag("login_submit_button")
+                            ) {
+                                Text(
+                                    text = viewModel.getString("login_submit"),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
                                 )
-                            },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = PrimaryCoral,
-                                unfocusedBorderColor = BorderColor,
-                                focusedContainerColor = SurfaceVariant,
-                                unfocusedContainerColor = SurfaceVariant
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
-
-                    // Profile Setup: Mascot picker
-                    Column {
-                        Text(
-                            text = "${viewModel.getString("login_mascot_label")}: $selectedMascotEmoji",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            val emojis = listOf("🦊", "🐱", "🐼", "🐰", "🐯", "🐨", "🦄", "🐹", "🦁", "🐧")
-                            items(emojis) { emoji ->
-                                val isSelected = selectedMascotEmoji == emoji
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isSelected) PrimaryCoral.copy(alpha = 0.25f) else SurfaceVariant)
-                                        .border(
-                                            width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) PrimaryCoral else BorderColor,
-                                            shape = CircleShape
-                                        )
-                                        .clickable { selectedMascotEmoji = emoji }
-                                        .padding(4.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = emoji,
-                                        fontSize = 20.sp
-                                    )
-                                }
                             }
                         }
-                    }
-
-                    // Remember Me and Forgot Password Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Checkbox(
-                                checked = rememberMe,
-                                onCheckedChange = { rememberMe = it },
-                                colors = CheckboxDefaults.colors(checkedColor = PrimaryCoral)
-                            )
-                            Text(
-                                "Duy trì đăng nhập",
-                                color = Color.White.copy(alpha = 0.7f),
-                                fontSize = 11.sp
-                            )
-                        }
-
-                        Text(
-                            text = "Quên mật khẩu?",
-                            color = PrimaryCoral,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable {
-                                Toast.makeText(
-                                    context,
-                                    "Vui lòng sử dụng Đăng nhập OTP bằng số điện thoại nếu bạn quên mật khẩu!",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        )
-                    }
-
-                    // Agreement Checkbox
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Checkbox(
-                            checked = agreeTerms,
-                            onCheckedChange = { agreeTerms = it },
-                            colors = CheckboxDefaults.colors(checkedColor = PrimaryCoral)
-                        )
-                        Text(
-                            text = "Tôi đồng ý với Điều khoản & Chính sách bảo mật",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 11.sp
-                        )
-                    }
-
-                    // Login/Submit Button
-                    Button(
-                        onClick = {
-                            if (!agreeTerms) {
-                                Toast.makeText(context, "Bạn phải đồng ý với Điều khoản sử dụng!", Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-                            if (loginPhone.isBlank() || loginPhone.length < 9) {
-                                Toast.makeText(context, viewModel.getString("alert_phone_invalid"), Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-
-                            val finalNickname = if (loginNickname.isBlank()) {
-                                val cuteNames = listOf("Mèo Cưng 🐱", "Gấu Xem Phim 🐼", "Cáo Tuyết 🦊", "Thỏ Ngoan 🐰", "Thần Phim Ngắn 🍿")
-                                cuteNames.random()
-                            } else {
-                                loginNickname
-                            }
-
-                            if (loginMethod == 0) { // OTP
-                                if (otpCode.isBlank()) {
-                                    Toast.makeText(context, "Vui lòng nhập mã OTP để xác minh!", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                if (otpCode != "1234" && otpCode != "8888") {
-                                    Toast.makeText(context, "Mã xác thực OTP chưa chính xác! Vui lòng thử mã 1234", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                            } else { // Password
-                                if (loginPassword.length < 6) {
-                                    Toast.makeText(context, "Mật khẩu phải chứa ít nhất 6 ký tự!", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                            }
-
-                            viewModel.login(loginPhone, finalNickname, selectedMascotEmoji)
-                            Toast.makeText(
-                                context,
-                                viewModel.getString("alert_login_success", finalNickname),
-                                Toast.LENGTH_LONG
-                            ).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .testTag("login_submit_button")
-                    ) {
-                        Text(
-                            text = viewModel.getString("login_submit"),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-
-                    // Social Login Integration Row
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.1f))
-                        Text(" Hoặc đăng nhập nhanh bằng ", color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.1f))
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
-                    ) {
-                        SocialLoginButton(
-                            logo = "🌐",
-                            backgroundColor = Color(0xFF1A1A1E),
-                            borderColor = Color.White.copy(alpha = 0.12f),
-                            onClick = {
-                                socialPlatform = "Google"
-                                isSocialLoading = true
-                            }
-                        )
-                        
-                        SocialLoginButton(
-                            logo = "🍎",
-                            backgroundColor = Color(0xFF1A1A1E),
-                            borderColor = Color.White.copy(alpha = 0.12f),
-                            onClick = {
-                                socialPlatform = "Apple"
-                                isSocialLoading = true
-                            }
-                        )
-
-                        SocialLoginButton(
-                            logo = "🔵",
-                            backgroundColor = Color(0xFF1A1A1E),
-                            borderColor = Color.White.copy(alpha = 0.12f),
-                            onClick = {
-                                socialPlatform = "Facebook"
-                                isSocialLoading = true
-                            }
-                        )
                     }
                 }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = viewModel.getString("login_security_notice"),
-                    fontSize = 10.sp,
-                    color = GrayText.copy(alpha = 0.5f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(40.dp))
-            }
+            )
         }
 
-        // Mock Social Connection Dialog
-        if (isSocialLoading) {
+        // --- 1. MOCK GOOGLE ACCOUNT CHOOSER ---
+        if (showGoogleChooser) {
+            val mockGoogleAccounts = listOf(
+                Triple("Trần Bình", "tranbi200000@gmail.com", "🦊"),
+                Triple("Nguyễn Thùy Linh", "linh.nt99@gmail.com", "🌸"),
+                Triple("Lê Minh Quân", "quan.tm2026@gmail.com", "🍿")
+            )
             AlertDialog(
-                onDismissRequest = { isSocialLoading = false },
+                onDismissRequest = { showGoogleChooser = false },
                 confirmButton = {},
+                shape = RoundedCornerShape(24.dp),
+                containerColor = Color.White,
                 title = {
-                    Text(
-                        "Đang kết nối $socialPlatform... 🚀",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Color.White,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFF1F3F4)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            GoogleLogo(modifier = Modifier.size(28.dp))
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Đăng nhập bằng Google",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F1D23)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "để tiếp tục ứng dụng MovieBox",
+                            fontSize = 12.sp,
+                            color = Color(0xFF5F6368),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Divider(color = Color(0xFFE8EAED), thickness = 1.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        mockGoogleAccounts.forEach { (name, email, emoji) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showGoogleChooser = false
+                                        lastNotifiedGoogleEmail = email
+                                        socialPlatform = name
+                                        isGoogleConnecting = true
+                                    }
+                                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFF1F3F4)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = emoji, fontSize = 22.sp)
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column {
+                                    Text(
+                                        text = name,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF1F1D23)
+                                    )
+                                    Text(
+                                        text = email,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF5F6368)
+                                    )
+                                }
+                            }
+                            Divider(color = Color(0xFFF1F3F4), thickness = 1.dp)
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    Toast.makeText(context, "Tính năng thêm tài khoản Google sẽ khả dụng trên thiết bị thật!", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(vertical = 12.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add Account",
+                                tint = Color(0xFF1A73E8),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = "Sử dụng một tài khoản khác",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF1A73E8)
+                            )
+                        }
+                    }
+                }
+            )
+        }
+
+        // --- 2. GOOGLE CONNECTING LOADER ---
+        if (isGoogleConnecting) {
+            AlertDialog(
+                onDismissRequest = { isGoogleConnecting = false },
+                confirmButton = {},
+                title = {},
                 text = {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
                     ) {
-                        CircularProgressIndicator(color = PrimaryCoral)
+                        CircularProgressIndicator(color = Color(0xFF4285F4))
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Text(
+                            text = "Đang kết nối tài khoản Google của bạn...",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            color = Color(0xFF1F1D23),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Xác thực bảo mật qua Google Sign-In",
+                            fontSize = 12.sp,
+                            color = Color(0xFF5F6368),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = Color.White
+            )
+            
+            LaunchedEffect(isGoogleConnecting) {
+                if (isGoogleConnecting) {
+                    delay(1500L)
+                    isGoogleConnecting = false
+                    val shortName = socialPlatform
+                    val avatar = if (shortName.contains("Bình")) "🦊" else if (shortName.contains("Linh")) "🌸" else "🍿"
+                    viewModel.login("0987654321", shortName, avatar)
+                    showGoogleNotificationBanner = true
+                    Toast.makeText(context, "Đăng nhập qua Google thành công! 🎉", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // --- 3. MOCK FACEBOOK ACCOUNT CHOOSER ---
+        if (showFacebookChooser) {
+            AlertDialog(
+                onDismissRequest = { showFacebookChooser = false },
+                confirmButton = {},
+                shape = RoundedCornerShape(20.dp),
+                containerColor = Color(0xFF18191A),
+                title = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        FacebookLogo(modifier = Modifier.size(44.dp))
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Vui lòng đợi giây lát để xác thực tài khoản $socialPlatform.",
+                            text = "Đăng nhập bằng Facebook",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "MovieBox muốn nhận thông tin trang cá nhân công khai của bạn.",
                             fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = Color.White.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF1877F2)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = "🦁", fontSize = 26.sp)
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column {
+                                    Text(
+                                        text = "Nguyễn Văn Hùng",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Tài khoản hoạt động trên ứng dụng Facebook",
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(alpha = 0.5f)
+                                    )
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        Button(
+                            onClick = {
+                                showFacebookChooser = false
+                                lastNotifiedFacebookName = "Nguyễn Văn Hùng"
+                                isFacebookConnecting = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                        ) {
+                            Text(
+                                text = "Tiếp tục dưới tên Hùng",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        TextButton(
+                            onClick = { showFacebookChooser = false }
+                        ) {
+                            Text(
+                                text = "Hủy bỏ và quay lại",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            )
+        }
+
+        // --- 4. FACEBOOK CONNECTING LOADER ---
+        if (isFacebookConnecting) {
+            AlertDialog(
+                onDismissRequest = { isFacebookConnecting = false },
+                confirmButton = {},
+                title = {},
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                    ) {
+                        CircularProgressIndicator(color = Color(0xFF1877F2))
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Text(
+                            text = "Đang kết nối Facebook... 🌐",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Đang xác thực bảo mật tài khoản Facebook",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.6f),
                             textAlign = TextAlign.Center
                         )
                     }
@@ -730,17 +1127,13 @@ fun ProfileScreen(
                 containerColor = Color(0xFF1F1D23)
             )
             
-            LaunchedEffect(isSocialLoading) {
-                if (isSocialLoading) {
-                    delay(2000L)
-                    isSocialLoading = false
-                    val mockName = when (socialPlatform) {
-                        "Google" -> "Mèo Vàng Google 🦁"
-                        "Apple" -> "Táo Khuyết Sành Điệu 🍎"
-                        else -> "Bé Thỏ Facebook 🐰"
-                    }
-                    viewModel.login("0987654321", mockName, "🦊")
-                    Toast.makeText(context, "Kết nối & Đăng nhập thành công qua $socialPlatform! 🎉", Toast.LENGTH_LONG).show()
+            LaunchedEffect(isFacebookConnecting) {
+                if (isFacebookConnecting) {
+                    delay(1500L)
+                    isFacebookConnecting = false
+                    viewModel.login("0987654321", "Nguyễn Văn Hùng 🦁", "🦁")
+                    showFacebookNotificationBanner = true
+                    Toast.makeText(context, "Đăng nhập qua Facebook thành công! 🎉", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -1274,6 +1667,40 @@ fun ProfileScreen(
 
                     Divider(color = BorderColor)
 
+                    // 🛠️ HE THONG QUAN TRI ADMIN 🛠️
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAdminPanel = true }
+                            .padding(16.dp)
+                            .testTag("admin_panel_selector_row"),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Build,
+                                contentDescription = "Admin Panel",
+                                tint = PrimaryGold
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Hệ thống Quản trị Admin",
+                                fontSize = 14.sp,
+                                color = PrimaryGold,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.NavigateNext,
+                            contentDescription = "Go",
+                            tint = PrimaryGold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Divider(color = BorderColor)
+
                     // 🛑 LOVELY LOGOUT BUTTON 🛑
                     Row(
                         modifier = Modifier
@@ -1320,7 +1747,7 @@ fun ProfileScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "FreeReels App v1.2.0-Production",
+                        text = "MovieBox App v1.2.0-Production",
                         fontSize = 11.sp,
                         color = GrayText
                     )
@@ -1487,6 +1914,320 @@ fun ProfileScreen(
             shape = RoundedCornerShape(12.dp)
         )
     }
+
+    // --- MOCK NOTIFICATION BANNERS OVERLAYS ---
+    // Automatic dismissal for Google Security Banner
+    LaunchedEffect(showGoogleNotificationBanner) {
+        if (showGoogleNotificationBanner) {
+            delay(6000L)
+            showGoogleNotificationBanner = false
+        }
+    }
+
+    // Automatic dismissal for Facebook Security Banner
+    LaunchedEffect(showFacebookNotificationBanner) {
+        if (showFacebookNotificationBanner) {
+            delay(6000L)
+            showFacebookNotificationBanner = false
+        }
+    }
+
+    // Gmail Notification Banner Animated Overlay
+    AnimatedVisibility(
+        visible = showGoogleNotificationBanner,
+        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .align(Alignment.TopCenter)
+            .padding(16.dp)
+            .systemBarsPadding()
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color(0xFFE8EAED), RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF202124)), // Modern dark Google Slate
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        GoogleLogo(modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1.0f)) {
+                        Text(
+                            text = "📧 Gmail - Cảnh báo bảo mật",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Vừa xong",
+                            fontSize = 10.sp,
+                            color = Color.White.copy(alpha = 0.5f)
+                        )
+                    }
+                    IconButton(
+                        onClick = { showGoogleNotificationBanner = false },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = "MovieBox vừa kết nối tài khoản Google của bạn ($lastNotifiedGoogleEmail). Chúng tôi đã gửi một hòm thư cảnh báo bảo mật đăng nhập đến email này để xác thực thiết bị.",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.85f),
+                    lineHeight = 16.sp
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = {
+                            showGoogleNotificationBanner = false
+                            Toast.makeText(context, "Đã mở hòm thư: $lastNotifiedGoogleEmail để kiểm tra bảo mật! 📬", Toast.LENGTH_LONG).show()
+                        }
+                    ) {
+                        Text(
+                            text = "Mở ứng dụng Gmail 📬",
+                            color = Color(0xFF4285F4),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Facebook Notification Banner Animated Overlay
+    AnimatedVisibility(
+        visible = showFacebookNotificationBanner,
+        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .align(Alignment.TopCenter)
+            .padding(16.dp)
+            .systemBarsPadding()
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color(0xFF1877F2).copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF242526)), // Facebook Dark container color
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1877F2)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        FacebookLogo(modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1.0f)) {
+                        Text(
+                            text = "🔔 Facebook - Thông báo bảo mật",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Vừa xong",
+                            fontSize = 10.sp,
+                            color = Color.White.copy(alpha = 0.5f)
+                        )
+                    }
+                    IconButton(
+                        onClick = { showFacebookNotificationBanner = false },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = "Đăng nhập thành công! Thiết bị của bạn vừa truy cập ứng dụng MovieBox thông qua Facebook. Lịch sử đăng nhập và cảnh báo bảo mật đã được đồng bộ hóa và lưu trữ trên hệ thống Facebook của bạn.",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.85f),
+                    lineHeight = 16.sp
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = {
+                            showFacebookNotificationBanner = false
+                            Toast.makeText(context, "Đã lưu trữ và gửi cảnh báo đến trung tâm bảo mật Facebook của bạn! 🛡️", Toast.LENGTH_LONG).show()
+                        }
+                    ) {
+                        Text(
+                            text = "Xem chi tiết hệ thống 🛡️",
+                            color = Color(0xFF1877F2),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Admin Console Panel Dialog
+    AdminConsoleDialog(
+        showDialog = showAdminPanel,
+        onDismiss = { showAdminPanel = false },
+        viewModel = viewModel
+    )
+}
+}
+
+@Composable
+fun GoogleLogo(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        val strokeWidth = width * 0.22f
+        
+        val rect = Rect(
+            strokeWidth / 2f,
+            strokeWidth / 2f,
+            width - strokeWidth / 2f,
+            height - strokeWidth / 2f
+        )
+        
+        drawArc(
+            color = Color(0xFF4285F4),
+            startAngle = -30f,
+            sweepAngle = 75f,
+            useCenter = false,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Butt
+            ),
+            topLeft = rect.topLeft,
+            size = rect.size
+        )
+        
+        drawArc(
+            color = Color(0xFF34A853),
+            startAngle = 45f,
+            sweepAngle = 80f,
+            useCenter = false,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Butt
+            ),
+            topLeft = rect.topLeft,
+            size = rect.size
+        )
+        
+        drawArc(
+            color = Color(0xFFFBBC05),
+            startAngle = 125f,
+            sweepAngle = 75f,
+            useCenter = false,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Butt
+            ),
+            topLeft = rect.topLeft,
+            size = rect.size
+        )
+        
+        drawArc(
+            color = Color(0xFFEA4335),
+            startAngle = 200f,
+            sweepAngle = 130f,
+            useCenter = false,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Butt
+            ),
+            topLeft = rect.topLeft,
+            size = rect.size
+        )
+        
+        val barY = height / 2f
+        val barXStart = width / 2f
+        val barXEnd = width - strokeWidth / 2f
+        drawLine(
+            color = Color(0xFF4285F4),
+            start = Offset(barXStart, barY),
+            end = Offset(barXEnd + strokeWidth / 2f, barY),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Square
+        )
+    }
+}
+
+@Composable
+fun FacebookLogo(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        
+        val path = Path().apply {
+            moveTo(w * 0.52f, h)
+            lineTo(w * 0.52f, h * 0.45f)
+            lineTo(w * 0.35f, h * 0.45f)
+            lineTo(w * 0.35f, h * 0.33f)
+            lineTo(w * 0.52f, h * 0.33f)
+            lineTo(w * 0.52f, h * 0.22f)
+            quadraticTo(w * 0.52f, h * 0.08f, w * 0.72f, h * 0.08f)
+            lineTo(w * 0.82f, h * 0.08f)
+            lineTo(w * 0.82f, h * 0.22f)
+            lineTo(w * 0.72f, h * 0.22f)
+            quadraticTo(w * 0.64f, h * 0.22f, w * 0.64f, h * 0.33f)
+            lineTo(w * 0.80f, h * 0.33f)
+            lineTo(w * 0.77f, h * 0.45f)
+            lineTo(w * 0.64f, h * 0.45f)
+            lineTo(w * 0.64f, h)
+            close()
+        }
+        drawPath(path = path, color = Color.White)
+    }
 }
 
 @Composable
@@ -1505,9 +2246,175 @@ fun SocialLoginButton(
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = logo,
-            fontSize = 22.sp
+        when (logo) {
+            "Google" -> {
+                GoogleLogo(modifier = Modifier.size(24.dp))
+            }
+            "Facebook" -> {
+                FacebookLogo(modifier = Modifier.size(24.dp))
+            }
+            else -> {
+                Text(
+                    text = logo,
+                    fontSize = 22.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PosterGridBackground(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                rotationZ = -12f
+                scaleX = 1.35f
+                scaleY = 1.35f
+                translationY = -90.dp.toPx()
+                translationX = -30.dp.toPx()
+            }
+    ) {
+        val images = listOf(
+            "cover_ceo_wife.jpg",
+            "cover_divine_doctor.jpg",
+            "cover_exwife_boss.jpg",
+            "cover_heiress_revenge.jpg"
         )
+        
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            for (rowIndex in 0..3) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.offset(x = if (rowIndex % 2 == 0) (-50).dp else 10.dp)
+                ) {
+                    for (colIndex in 0..3) {
+                        val imgName = images[(rowIndex + colIndex) % images.size]
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .width(120.dp)
+                                .height(170.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        ) {
+                            AsyncImage(
+                                model = "file:///android_asset/$imgName",
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MovieBoxLogoIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        
+        val boxLeft = w * 0.075f
+        val boxTop = h * 0.075f
+        val boxWidth = w * 0.85f
+        val boxHeight = h * 0.85f
+        
+        // 1. Draw outer neon/glowing border with linear gradient of Coral to Gold
+        val gradient = Brush.linearGradient(
+            colors = listOf(PrimaryCoral, PrimaryGold),
+            start = Offset(0f, 0f),
+            end = Offset(w, h)
+        )
+        
+        // Solid deep dark-plum/indigo background inside the box
+        drawRoundRect(
+            color = Color(0xFF1B1826),
+            topLeft = Offset(boxLeft, boxTop),
+            size = androidx.compose.ui.geometry.Size(boxWidth, boxHeight),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.18f)
+        )
+        
+        // Glowing stroke border
+        drawRoundRect(
+            brush = gradient,
+            topLeft = Offset(boxLeft, boxTop),
+            size = androidx.compose.ui.geometry.Size(boxWidth, boxHeight),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.18f),
+            style = Stroke(width = w * 0.05f)
+        )
+        
+        // 2. Film perforations on the left and right inside edges (Sprocket holes)
+        val holeW = w * 0.05f
+        val holeH = h * 0.05f
+        val leftX = boxLeft + w * 0.07f
+        val rightX = boxLeft + boxWidth - w * 0.12f
+        for (i in 0..3) {
+            val y = boxTop + h * 0.12f + i * (h * 0.17f)
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.7f),
+                topLeft = Offset(leftX, y),
+                size = androidx.compose.ui.geometry.Size(holeW, holeH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(holeW * 0.2f)
+            )
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.7f),
+                topLeft = Offset(rightX, y),
+                size = androidx.compose.ui.geometry.Size(holeW, holeH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(holeW * 0.2f)
+            )
+        }
+        
+        // 3. Central glowing coral circular play button base
+        val playCircleRadius = w * 0.16f
+        drawCircle(
+            brush = Brush.linearGradient(
+                colors = listOf(PrimaryCoral, PrimaryCoral.copy(alpha = 0.85f)),
+                start = Offset(w / 2f - playCircleRadius, h / 2f - playCircleRadius),
+                end = Offset(w / 2f + playCircleRadius, h / 2f + playCircleRadius)
+            ),
+            center = Offset(w / 2f, h / 2f),
+            radius = playCircleRadius
+        )
+        
+        // 4. White play triangle in the very center
+        val triWidth = playCircleRadius * 0.75f
+        val triHeight = playCircleRadius * 0.75f
+        val triLeft = w / 2f - triWidth * 0.32f
+        val triTop = h / 2f - triHeight / 2f
+        val playPath = Path().apply {
+            moveTo(triLeft, triTop)
+            lineTo(triLeft + triWidth, h / 2f)
+            lineTo(triLeft, triTop + triHeight)
+            close()
+        }
+        drawPath(
+            path = playPath,
+            color = Color.White
+        )
+        
+        // 5. Drawing two magical sparkle stars
+        val drawSparkle = { cx: Float, cy: Float, size: Float, color: Color ->
+            val starPath = Path().apply {
+                moveTo(cx, cy - size)
+                quadraticTo(cx, cy, cx + size, cy)
+                quadraticTo(cx, cy, cx, cy + size)
+                quadraticTo(cx, cy, cx - size, cy)
+                quadraticTo(cx, cy, cx, cy - size)
+                close()
+            }
+            drawPath(path = starPath, color = color)
+        }
+        
+        // Top right star
+        drawSparkle(w * 0.76f, h * 0.22f, w * 0.08f, PrimaryGold)
+        // Bottom left star
+        drawSparkle(w * 0.24f, h * 0.78f, w * 0.06f, PrimaryGold)
     }
 }

@@ -87,6 +87,9 @@ interface UnlockedEpisodeDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUnlock(unlock: UnlockedEpisodeEntity)
+
+    @Query("DELETE FROM unlocked_episodes")
+    suspend fun clearAllUnlocks()
 }
 
 @Dao

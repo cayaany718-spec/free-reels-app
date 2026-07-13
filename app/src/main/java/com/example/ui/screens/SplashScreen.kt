@@ -65,7 +65,7 @@ fun SplashScreen(
         "Đang sắp xếp bắp rang bơ siêu ngọt... 🍿💖",
         "Chuẩn bị rạp phim mini siêu xịn... 🎬🧸",
         "Đang tìm kiếm những thước phim ngọt ngào nhất... 🌟🎀",
-        "Chào mừng bạn đến với FreeReels! 🥰💫"
+        "Chào mừng bạn đến với MovieBox! 🥰💫"
     )
 
     // Cycle text every 800ms
@@ -459,7 +459,7 @@ fun SplashScreen(
 
             // --- APP NAME WITH GORGEOUS GLOW ---
             Text(
-                text = "FreeReels",
+                text = "MovieBox",
                 fontSize = 38.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.White,

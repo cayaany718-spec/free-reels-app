@@ -11,7 +11,7 @@ data class Drama(
     val episodesCount: Int,
     val isHot: Boolean = false,
     val isTrending: Boolean = false,
-    val author: String = "FreeReels Studio",
+    val author: String = "MovieBox Studio",
     val isDubbed: Boolean = false,
     val subtag: String = "Báo thù",
     val overlayBadge: String? = null
@@ -28,8 +28,8 @@ data class Episode(
 )
 
 data class UserProfile(
-    val id: String = "FR_948102",
-    val nickname: String = "Thành viên FreeReels 🦊",
+    val id: String = "MB_948102",
+    val nickname: String = "Thành viên MovieBox 🦊",
     val avatarEmoji: String = "🦊",
     val phoneNumber: String = "",
     val vipLevel: String = "THÀNH VIÊN VIP PREMIUM",
