@@ -18,9 +18,20 @@ fun AppNavigation(
 ) {
     NavHost(
         navController = navController,
-        startDestination = "home",
+        startDestination = "splash",
         modifier = modifier
     ) {
+        // Splash Screen
+        composable("splash") {
+            SplashScreen(
+                onNavigateToHome = {
+                    navController.navigate("home") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                }
+            )
+        }
+
         // Discover Screen
         composable("home") {
             HomeScreen(
