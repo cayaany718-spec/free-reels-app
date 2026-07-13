@@ -35,10 +35,21 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import com.example.data.CheckInResult
 import com.example.data.WatchHistoryItem
+import com.example.data.UserBalanceEntity
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.example.ui.theme.PrimaryCoral
 import com.example.ui.theme.PrimaryGold
 import com.example.viewmodel.DramaViewModel
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -548,6 +559,11 @@ fun CoinsTabContent(
             }
         }
 
+        // 1.5. Interactive Lucky Wheel
+        item {
+            LuckyWheelCard(viewModel = viewModel)
+        }
+
         // Quests header Title
         item {
             Text(
@@ -733,6 +749,518 @@ fun CoinsTabContent(
 
         item {
             Spacer(modifier = Modifier.height(80.dp))
+        }
+    }
+}
+
+// ======================== LUCKY WHEEL COMPONENTS ========================
+
+data class WheelSector(
+    val id: Int,
+    val label: String,
+    val coins: Int,
+    val color: Color
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LuckyWheelCard(
+    viewModel: DramaViewModel,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val userBalanceState by viewModel.userBalance.collectAsState(initial = UserBalanceEntity())
+
+    val sectors = remember {
+        listOf(
+            WheelSector(0, "+10 XU 🪙", 10, Color(0xFFFF6B81)),
+            WheelSector(1, "+20 XU 🪙", 20, Color(0xFFFF9F43)),
+            WheelSector(2, "+50 XU 🪙", 50, Color(0xFFFECA57)),
+            WheelSector(3, "+100 XU! 🌟", 100, Color(0xFFFF4757)),
+            WheelSector(4, "+5 XU 🪙", 5, Color(0xFF5F27CD)),
+            WheelSector(5, "+15 XU 🪙", 15, Color(0xFF54A0FF)),
+            WheelSector(6, "+30 XU 🪙", 30, Color(0xFF00D2D3)),
+            WheelSector(7, "+200 XU! 👑", 200, Color(0xFF10AC84))
+        )
+    }
+
+    var currentRotation by remember { mutableStateOf(0f) }
+    var isSpinning by remember { mutableStateOf(false) }
+    var showPrizeDialog by remember { mutableStateOf(false) }
+    var showAdProgress by remember { mutableStateOf(false) }
+    var wonSector by remember { mutableStateOf<WheelSector?>(null) }
+
+    val animatedRotation by animateFloatAsState(
+        targetValue = currentRotation,
+        animationSpec = androidx.compose.animation.core.tween(
+            durationMillis = 3500,
+            easing = androidx.compose.animation.core.EaseOutQuart
+        ),
+        finishedListener = {
+            if (isSpinning) {
+                isSpinning = false
+                showPrizeDialog = true
+            }
+        },
+        label = "wheel_spin_anim"
+    )
+
+    // Simulated Ad Dialog
+    if (showAdProgress) {
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {},
+            title = {
+                Text(
+                    "ĐANG TẢI QUẢNG CÁO... 📺",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    CircularProgressIndicator(color = PrimaryCoral)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Vui lòng đợi giây lát để nhận thêm 1 lượt quay miễn phí!",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color(0xFF1F1D23)
+        )
+    }
+
+    // Prize Dialog
+    if (showPrizeDialog && wonSector != null) {
+        AlertDialog(
+            onDismissRequest = { /* Force action or dismiss */ },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.topUpCoins(wonSector!!.coins)
+                        showPrizeDialog = false
+                        Toast.makeText(
+                            context,
+                            "Bạn đã nhận thành công ${wonSector!!.coins} xu! 🎉",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral)
+                ) {
+                    Text("Nhận ngay 🥰", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            title = {
+                Text(
+                    "CHÚC MỪNG BẠN! 🎉",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 20.sp,
+                    color = PrimaryGold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "🧸🎀",
+                        fontSize = 48.sp,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    Text(
+                        text = "Vòng quay may mắn đã dừng lại ở ô:",
+                        textAlign = TextAlign.Center,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = wonSector!!.label,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 24.sp,
+                        color = wonSector!!.color
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Xu đã được cộng trực tiếp vào ví của bạn để mở khóa các bộ phim truyền hình siêu hot! 🎬💖",
+                        textAlign = TextAlign.Center,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        lineHeight = 16.sp
+                    )
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = Color(0xFF1F1D23)
+        )
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("lucky_wheel_card"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF19171C)
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            Color.White.copy(alpha = 0.08f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Header Info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "🎡",
+                        fontSize = 22.sp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "Vòng Quay May Mắn",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Thử vận may - Nhận xu miễn phí mỗi ngày!",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+
+                // Spin Ticket count badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(PrimaryCoral.copy(alpha = 0.15f))
+                        .border(1.dp, PrimaryCoral.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "Lượt: ${userBalanceState.spins} 🎫",
+                        color = PrimaryCoral,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Wheel Outer Container with Shadow and Pointer
+            Box(
+                modifier = Modifier
+                    .size(260.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // The Wheel itself
+                Canvas(
+                    modifier = Modifier
+                        .size(230.dp)
+                        .graphicsLayer { rotationZ = animatedRotation }
+                        .border(4.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                ) {
+                    val radius = size.minDimension / 2
+                    val center = Offset(size.width / 2, size.height / 2)
+                    val sweepAngle = 360f / sectors.size
+
+                    // Draw colored slices
+                    for (i in sectors.indices) {
+                        val startAngle = i * sweepAngle - sweepAngle / 2f
+                        drawArc(
+                            color = sectors[i].color,
+                            startAngle = startAngle,
+                            sweepAngle = sweepAngle,
+                            useCenter = true,
+                            size = Size(size.width, size.height)
+                        )
+                    }
+
+                    // Draw separator lines
+                    for (i in sectors.indices) {
+                        val angleRad = Math.toRadians((i * sweepAngle - sweepAngle / 2f).toDouble())
+                        val x = center.x + radius * Math.cos(angleRad).toFloat()
+                        val y = center.y + radius * Math.sin(angleRad).toFloat()
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.35f),
+                            start = center,
+                            end = Offset(x, y),
+                            strokeWidth = 1.5.dp.toPx()
+                        )
+                    }
+
+                    // Draw text labels radial inside slices
+                    val paint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.WHITE
+                        textSize = 10.dp.toPx()
+                        isFakeBoldText = true
+                        textAlign = android.graphics.Paint.Align.CENTER
+                    }
+
+                    for (i in sectors.indices) {
+                        val angleDeg = i * sweepAngle
+                        val angleRad = Math.toRadians(angleDeg.toDouble())
+                        val textRadius = radius * 0.65f
+                        val tx = center.x + textRadius * Math.cos(angleRad).toFloat()
+                        val ty = center.y + textRadius * Math.sin(angleRad).toFloat()
+
+                        rotate(degrees = angleDeg + 90f, pivot = Offset(tx, ty)) {
+                            drawContext.canvas.nativeCanvas.drawText(
+                                sectors[i].label.substringBefore(" XU"), // simplify label to look neat on tiny wheel
+                                tx,
+                                ty + 3.dp.toPx(),
+                                paint
+                            )
+                        }
+                    }
+                }
+
+                // Stationary Pointer at top (pointing down)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 220.dp),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Canvas(modifier = Modifier.size(24.dp)) {
+                        val path = Path().apply {
+                            moveTo(size.width / 2f, size.height)
+                            lineTo(0f, 0f)
+                            lineTo(size.width, 0f)
+                            close()
+                        }
+                        drawPath(path, color = PrimaryGold)
+                        // tiny border
+                        drawPath(path, color = Color.White, style = Stroke(width = 1.5.dp.toPx()))
+                    }
+                }
+
+                // Central Non-Rotating SPIN/QUAY Button
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(PrimaryCoral, Color(0xFFFF4757))
+                            )
+                        )
+                        .border(3.dp, Color.White, CircleShape)
+                        .clickable(enabled = !isSpinning) {
+                            if (userBalanceState.spins <= 0) {
+                                Toast.makeText(
+                                    context,
+                                    "Bạn đã hết lượt quay miễn phí! Hãy nhận thêm lượt ở bên dưới nhé 👇",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@clickable
+                            }
+
+                            isSpinning = true
+                            val winningIndex = (0..7).random()
+                            wonSector = sectors[winningIndex]
+
+                            viewModel.useSpin(
+                                onSuccess = {
+                                    val extraRotations = 6
+                                    val sweepAngle = 360f / sectors.size
+                                    val currentFullRotations = (currentRotation / 360f).toInt()
+                                    val nextBase = (currentFullRotations + extraRotations) * 360f
+                                    currentRotation = nextBase - (winningIndex * sweepAngle)
+                                },
+                                onFailure = {
+                                    isSpinning = false
+                                    Toast.makeText(
+                                        context,
+                                        "Có lỗi xảy ra, vui lòng thử lại sau!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                        }
+                        .testTag("lucky_wheel_spin_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "QUAY",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Wheel status text helper
+            Text(
+                text = if (isSpinning) {
+                    "Đang tìm kiếm vận may của bạn... ✨🍀"
+                } else if (userBalanceState.spins > 0) {
+                    "Bạn còn ${userBalanceState.spins} lượt quay miễn phí! 🎁"
+                } else {
+                    "Bạn đã hết lượt quay miễn phí hôm nay! 🥺"
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (isSpinning) PrimaryGold else Color.White.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Get more spins options
+            Text(
+                text = "NHẬN THÊM LƯỢT QUAY",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryGold,
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Option 1: Buy spins with Coins
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(enabled = !isSpinning) {
+                            viewModel.exchangeCoinsForSpins(
+                                coinCost = 15,
+                                spinAmount = 1,
+                                onSuccess = {
+                                    Toast.makeText(
+                                        context,
+                                        "Đổi lượt thành công! 🎉 Chúc bạn trúng lớn!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onFailure = {
+                                    Toast.makeText(
+                                        context,
+                                        "Bạn không đủ xu! Tích lũy thêm xu hoặc xem quảng cáo nhé! 🪙",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            )
+                        },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF221F26)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.5.dp,
+                        Color.White.copy(alpha = 0.05f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(text = "🪙 ➔ 🎫", fontSize = 18.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Đổi 15 Xu",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Nhận +1 Lượt quay",
+                            fontSize = 10.sp,
+                            color = Color.White.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+
+                // Option 2: Watch Ad for Free Spins
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(enabled = !isSpinning) {
+                            showAdProgress = true
+                            coroutineScope.launch {
+                                delay(2500)
+                                showAdProgress = false
+                                viewModel.watchAdAndEarnSpins()
+                                Toast.makeText(
+                                    context,
+                                    "Xem quảng cáo hoàn tất! Nhận thành công +1 Lượt quay! 🎡🎉",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF221F26)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.5.dp,
+                        Color.White.copy(alpha = 0.05f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(text = "📺 ➔ 🎫", fontSize = 18.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Xem QC nhận Lượt",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Miễn phí +1 Lượt",
+                            fontSize = 10.sp,
+                            color = Color.White.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+            }
         }
     }
 }

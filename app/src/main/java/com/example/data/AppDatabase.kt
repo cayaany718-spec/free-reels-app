@@ -32,7 +32,9 @@ data class UnlockedEpisodeEntity(
 data class UserBalanceEntity(
     @PrimaryKey val id: Int = 0, // singleton row
     val coins: Int = 50, // default starter coins
-    val lastCheckInTime: Long = 0L
+    val lastCheckInTime: Long = 0L,
+    val spins: Int = 3, // default daily free spins count
+    val lastSpinTime: Long = 0L
 )
 
 // DAO Interfaces
@@ -107,7 +109,7 @@ interface UserBalanceDao {
         UnlockedEpisodeEntity::class,
         UserBalanceEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

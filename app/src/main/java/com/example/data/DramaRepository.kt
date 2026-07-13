@@ -127,7 +127,57 @@ class DramaRepository(context: Context) {
         val balance = userBalanceDao.getBalance()
         if (balance == null) {
             userBalanceDao.updateBalance(UserBalanceEntity())
+        } else {
+            // Also check and auto-reset daily free spins upon initial launch
+            checkAndResetDailySpins()
         }
+    }
+
+    suspend fun useSpin(): Boolean {
+        val balance = userBalanceDao.getBalance() ?: UserBalanceEntity()
+        if (balance.spins > 0) {
+            val updatedBalance = balance.copy(
+                spins = balance.spins - 1,
+                lastSpinTime = System.currentTimeMillis()
+            )
+            userBalanceDao.updateBalance(updatedBalance)
+            return true
+        }
+        return false
+    }
+
+    suspend fun watchAdAndEarnSpins(): Int {
+        val balance = userBalanceDao.getBalance() ?: UserBalanceEntity()
+        val updatedBalance = balance.copy(spins = balance.spins + 1)
+        userBalanceDao.updateBalance(updatedBalance)
+        return 1
+    }
+
+    suspend fun exchangeCoinsForSpins(coinCost: Int, spinAmount: Int): Boolean {
+        val balance = userBalanceDao.getBalance() ?: UserBalanceEntity()
+        if (balance.coins >= coinCost) {
+            val updatedBalance = balance.copy(
+                coins = balance.coins - coinCost,
+                spins = balance.spins + spinAmount
+            )
+            userBalanceDao.updateBalance(updatedBalance)
+            return true
+        }
+        return false
+    }
+
+    suspend fun checkAndResetDailySpins(): UserBalanceEntity {
+        val balance = userBalanceDao.getBalance() ?: UserBalanceEntity()
+        val currentTime = System.currentTimeMillis()
+        if (balance.lastSpinTime > 0L && !isSameDay(balance.lastSpinTime, currentTime)) {
+            val updatedBalance = balance.copy(
+                spins = 3,
+                lastSpinTime = currentTime
+            )
+            userBalanceDao.updateBalance(updatedBalance)
+            return updatedBalance
+        }
+        return balance
     }
 
     suspend fun performDailyCheckIn(): CheckInResult {

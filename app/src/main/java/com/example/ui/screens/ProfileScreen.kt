@@ -36,6 +36,13 @@ import com.example.shortdrama.R
 import com.example.data.Drama
 import com.example.data.UserProfile
 import com.example.data.AppLanguage
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.example.ui.theme.PrimaryCoral
 import com.example.ui.theme.PrimaryGold
 import com.example.ui.theme.DarkSurface
@@ -64,6 +71,35 @@ fun ProfileScreen(
     var loginPhone by remember { mutableStateOf("") }
     var loginNickname by remember { mutableStateOf("") }
     var selectedMascotEmoji by remember { mutableStateOf("🦊") }
+    
+    // Professional Login state additions
+    val coroutineScope = rememberCoroutineScope()
+    var loginMethod by remember { mutableIntStateOf(0) } // 0 = OTP, 1 = Password
+    var loginPassword by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var otpCode by remember { mutableStateOf("") }
+    var rememberMe by remember { mutableStateOf(true) }
+    var agreeTerms by remember { mutableStateOf(true) }
+    var activeField by remember { mutableStateOf("") } // "nickname", "phone", "password", "otp"
+    
+    // Timer states for OTP
+    var timeLeft by remember { mutableIntStateOf(0) }
+    var isTimerRunning by remember { mutableStateOf(false) }
+    
+    // Social Login loading state
+    var isSocialLoading by remember { mutableStateOf(false) }
+    var socialPlatform by remember { mutableStateOf("") }
+
+    // Countdown Timer logic
+    LaunchedEffect(isTimerRunning, timeLeft) {
+        if (isTimerRunning && timeLeft > 0) {
+            delay(1000L)
+            timeLeft -= 1
+            if (timeLeft == 0) {
+                isTimerRunning = false
+            }
+        }
+    }
     
     // Edit profile state
     var isEditingName by remember { mutableStateOf(false) }
@@ -122,75 +158,294 @@ fun ProfileScreen(
                     fontSize = 13.sp,
                     color = Color.White.copy(alpha = 0.6f),
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                 )
 
-                // The super cute generated 3D fox mascot hero visual
-                Box(
+                // Interactive Mascot Reaction section with speech bubble!
+                val currentMascot = when {
+                    activeField == "password" -> "🫣"
+                    activeField == "otp" -> "⏳"
+                    isTimerRunning -> "⏰"
+                    else -> selectedMascotEmoji
+                }
+
+                val mascotBubbleText = when {
+                    activeField == "password" -> "Tớ nhắm mắt rồi, bạn nhập mật khẩu an toàn đi nhé! 🫣"
+                    activeField == "otp" -> "Nhập mã OTP 4 chữ số gửi qua SMS nha! ⏳"
+                    activeField == "nickname" -> "Biệt danh này nghe rất phong cách và đáng yêu! 🥰"
+                    activeField == "phone" -> "Số điện thoại giúp bạn nhận mã ưu đãi cực khủng! 📞"
+                    else -> "Chào bạn yêu! Hãy trải nghiệm xem phim không giới hạn nhé! 🍿💖"
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .size(170.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(PrimaryCoral.copy(alpha = 0.3f), PrimaryGold.copy(alpha = 0.3f))
-                            )
-                        )
-                        .padding(4.dp),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_cute_login_hero_1783837722932),
-                        contentDescription = "Cute Fox Mascot watching movie",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(20.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                    
-                    // Cute small bubble overlay
+                    // Speech bubble over mascot
                     Box(
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(8.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(PrimaryCoral)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(PrimaryCoral.copy(alpha = 0.15f))
+                            .border(1.dp, PrimaryCoral.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            text = "Cute Fox 🦊",
+                            text = mascotBubbleText,
                             color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.widthIn(max = 280.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Mascot display circle with sparkling gradients
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(PrimaryCoral, PrimaryGold)
+                                )
+                            )
+                            .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = currentMascot,
+                            fontSize = 54.sp
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Beautiful interactive form
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .background(DarkSurface)
-                        .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
+                        .border(1.dp, BorderColor, RoundedCornerShape(20.dp))
                         .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(
-                        text = viewModel.getString("login_card_title"),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryGold,
-                        letterSpacing = 1.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    // Segmented Tabs: OTP Login vs Password Login
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfaceVariant)
+                            .padding(4.dp)
+                    ) {
+                        listOf("Mã OTP ⚡", "Mật khẩu 🔒").forEachIndexed { index, title ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (loginMethod == index) PrimaryCoral else Color.Transparent)
+                                    .clickable { loginMethod = index }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = title,
+                                    color = if (loginMethod == index) Color.White else Color.White.copy(alpha = 0.6f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
 
-                    // Nickname field with cute icon
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Phone Number Field (common for both)
                     Column {
                         Text(
-                            text = viewModel.getString("login_nickname_label"),
+                            text = viewModel.getString("login_phone_label"),
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        OutlinedTextField(
+                            value = loginPhone,
+                            onValueChange = { input ->
+                                if (input.all { it.isDigit() }) {
+                                    loginPhone = input
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { state -> 
+                                    if (state.isFocused) activeField = "phone" 
+                                    else if (activeField == "phone") activeField = "" 
+                                }
+                                .testTag("login_phone_input"),
+                            placeholder = { Text(viewModel.getString("login_phone_placeholder"), fontSize = 12.sp, color = Color.Gray) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Phone,
+                                    contentDescription = "Phone Icon",
+                                    tint = PrimaryCoral
+                                )
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = PrimaryCoral,
+                                unfocusedBorderColor = BorderColor,
+                                focusedContainerColor = SurfaceVariant,
+                                unfocusedContainerColor = SurfaceVariant
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    // Conditional credential fields based on tab
+                    if (loginMethod == 0) {
+                        // OTP Method
+                        Column {
+                            Text(
+                                text = "Mã xác minh (OTP)",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = otpCode,
+                                    onValueChange = { input ->
+                                        if (input.length <= 6 && input.all { it.isDigit() }) {
+                                            otpCode = input
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .weight(1.5f)
+                                        .onFocusChanged { state -> 
+                                            if (state.isFocused) activeField = "otp" 
+                                            else if (activeField == "otp") activeField = "" 
+                                        }
+                                        .testTag("login_otp_input"),
+                                    placeholder = { Text("Nhập OTP (Thử: 1234)", fontSize = 12.sp, color = Color.Gray) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Lock,
+                                            contentDescription = "OTP Icon",
+                                            tint = PrimaryGold
+                                        )
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = PrimaryCoral,
+                                        unfocusedBorderColor = BorderColor,
+                                        focusedContainerColor = SurfaceVariant,
+                                        unfocusedContainerColor = SurfaceVariant
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+
+                                Button(
+                                    onClick = {
+                                        if (loginPhone.length < 9) {
+                                            Toast.makeText(context, "Vui lòng nhập số điện thoại hợp lệ trước!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            timeLeft = 60
+                                            isTimerRunning = true
+                                            Toast.makeText(context, "Mã OTP dùng thử đã được gửi! (Mã của bạn: 1234)", Toast.LENGTH_LONG).show()
+                                        }
+                                    },
+                                    enabled = !isTimerRunning,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isTimerRunning) Color.Gray else PrimaryCoral,
+                                        disabledContainerColor = Color.White.copy(alpha = 0.1f)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(54.dp)
+                                ) {
+                                    Text(
+                                        text = if (isTimerRunning) "Gửi lại (${timeLeft}s)" else "Gửi mã",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isTimerRunning) Color.White.copy(alpha = 0.6f) else Color.White
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Password Method
+                        Column {
+                            Text(
+                                text = "Mật khẩu an toàn",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                            OutlinedTextField(
+                                value = loginPassword,
+                                onValueChange = { loginPassword = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onFocusChanged { state -> 
+                                        if (state.isFocused) activeField = "password" 
+                                        else if (activeField == "password") activeField = "" 
+                                    }
+                                    .testTag("login_password_input"),
+                                placeholder = { Text("Nhập mật khẩu (tối thiểu 6 ký tự)", fontSize = 12.sp, color = Color.Gray) },
+                                singleLine = true,
+                                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.LockOpen,
+                                        contentDescription = "Password Icon",
+                                        tint = PrimaryGold
+                                    )
+                                },
+                                trailingIcon = {
+                                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                        Icon(
+                                            imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = "Toggle Visibility",
+                                            tint = Color.Gray
+                                        )
+                                    }
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = PrimaryCoral,
+                                    unfocusedBorderColor = BorderColor,
+                                    focusedContainerColor = SurfaceVariant,
+                                    unfocusedContainerColor = SurfaceVariant
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+                    }
+
+                    // Profile Setup: Nickname (Optional / Auto-generated)
+                    Column {
+                        Text(
+                            text = viewModel.getString("login_nickname_label") + " (Không bắt buộc)",
                             color = Color.White.copy(alpha = 0.8f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -199,7 +454,14 @@ fun ProfileScreen(
                         OutlinedTextField(
                             value = loginNickname,
                             onValueChange = { loginNickname = it },
-                            placeholder = { Text(viewModel.getString("login_nickname_placeholder"), fontSize = 12.sp, color = Color.Gray) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { state -> 
+                                    if (state.isFocused) activeField = "nickname" 
+                                    else if (activeField == "nickname") activeField = "" 
+                                }
+                                .testTag("login_nickname_input"),
+                            placeholder = { Text("Để trống hệ thống sẽ tự tạo biệt danh ngẫu nhiên", fontSize = 12.sp, color = Color.Gray) },
                             singleLine = true,
                             leadingIcon = {
                                 Icon(
@@ -216,61 +478,18 @@ fun ProfileScreen(
                                 focusedContainerColor = SurfaceVariant,
                                 unfocusedContainerColor = SurfaceVariant
                             ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("login_nickname_input")
+                            shape = RoundedCornerShape(12.dp)
                         )
                     }
 
-                    // Phone number field
-                    Column {
-                        Text(
-                            text = viewModel.getString("login_phone_label"),
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        OutlinedTextField(
-                            value = loginPhone,
-                            onValueChange = { input ->
-                                if (input.all { it.isDigit() }) {
-                                    loginPhone = input
-                                }
-                            },
-                            placeholder = { Text(viewModel.getString("login_phone_placeholder"), fontSize = 12.sp, color = Color.Gray) },
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Phone,
-                                    contentDescription = "Phone Icon",
-                                    tint = PrimaryCoral
-                                )
-                            },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = PrimaryCoral,
-                                unfocusedBorderColor = BorderColor,
-                                focusedContainerColor = SurfaceVariant,
-                                unfocusedContainerColor = SurfaceVariant
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("login_phone_input")
-                        )
-                    }
-
-                    // Mascot list picker
+                    // Profile Setup: Mascot picker
                     Column {
                         Text(
                             text = "${viewModel.getString("login_mascot_label")}: $selectedMascotEmoji",
                             color = Color.White.copy(alpha = 0.8f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            modifier = Modifier.padding(bottom = 6.dp)
                         )
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -281,7 +500,7 @@ fun ProfileScreen(
                                 val isSelected = selectedMascotEmoji == emoji
                                 Box(
                                     modifier = Modifier
-                                        .size(46.dp)
+                                        .size(44.dp)
                                         .clip(CircleShape)
                                         .background(if (isSelected) PrimaryCoral.copy(alpha = 0.25f) else SurfaceVariant)
                                         .border(
@@ -295,30 +514,109 @@ fun ProfileScreen(
                                 ) {
                                     Text(
                                         text = emoji,
-                                        fontSize = 22.sp
+                                        fontSize = 20.sp
                                     )
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    // Remember Me and Forgot Password Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Checkbox(
+                                checked = rememberMe,
+                                onCheckedChange = { rememberMe = it },
+                                colors = CheckboxDefaults.colors(checkedColor = PrimaryCoral)
+                            )
+                            Text(
+                                "Duy trì đăng nhập",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp
+                            )
+                        }
 
-                    // Bouncy submit button
-                    Button(
-                        onClick = {
-                            if (loginNickname.isBlank()) {
-                                Toast.makeText(context, viewModel.getString("alert_nickname_empty"), Toast.LENGTH_SHORT).show()
-                            } else if (loginPhone.length < 9) {
-                                Toast.makeText(context, viewModel.getString("alert_phone_invalid"), Toast.LENGTH_SHORT).show()
-                            } else {
-                                viewModel.login(loginPhone, loginNickname, selectedMascotEmoji)
+                        Text(
+                            text = "Quên mật khẩu?",
+                            color = PrimaryCoral,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable {
                                 Toast.makeText(
-                                    context, 
-                                    viewModel.getString("alert_login_success", loginNickname), 
+                                    context,
+                                    "Vui lòng sử dụng Đăng nhập OTP bằng số điện thoại nếu bạn quên mật khẩu!",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
+                        )
+                    }
+
+                    // Agreement Checkbox
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Checkbox(
+                            checked = agreeTerms,
+                            onCheckedChange = { agreeTerms = it },
+                            colors = CheckboxDefaults.colors(checkedColor = PrimaryCoral)
+                        )
+                        Text(
+                            text = "Tôi đồng ý với Điều khoản & Chính sách bảo mật",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    // Login/Submit Button
+                    Button(
+                        onClick = {
+                            if (!agreeTerms) {
+                                Toast.makeText(context, "Bạn phải đồng ý với Điều khoản sử dụng!", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (loginPhone.isBlank() || loginPhone.length < 9) {
+                                Toast.makeText(context, viewModel.getString("alert_phone_invalid"), Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
+                            val finalNickname = if (loginNickname.isBlank()) {
+                                val cuteNames = listOf("Mèo Cưng 🐱", "Gấu Xem Phim 🐼", "Cáo Tuyết 🦊", "Thỏ Ngoan 🐰", "Thần Phim Ngắn 🍿")
+                                cuteNames.random()
+                            } else {
+                                loginNickname
+                            }
+
+                            if (loginMethod == 0) { // OTP
+                                if (otpCode.isBlank()) {
+                                    Toast.makeText(context, "Vui lòng nhập mã OTP để xác minh!", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                if (otpCode != "1234" && otpCode != "8888") {
+                                    Toast.makeText(context, "Mã xác thực OTP chưa chính xác! Vui lòng thử mã 1234", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                            } else { // Password
+                                if (loginPassword.length < 6) {
+                                    Toast.makeText(context, "Mật khẩu phải chứa ít nhất 6 ký tự!", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                            }
+
+                            viewModel.login(loginPhone, finalNickname, selectedMascotEmoji)
+                            Toast.makeText(
+                                context,
+                                viewModel.getString("alert_login_success", finalNickname),
+                                Toast.LENGTH_LONG
+                            ).show()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral),
                         shape = RoundedCornerShape(12.dp),
@@ -327,17 +625,60 @@ fun ProfileScreen(
                             .height(50.dp)
                             .testTag("login_submit_button")
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = viewModel.getString("login_submit"),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
+                        Text(
+                            text = viewModel.getString("login_submit"),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    // Social Login Integration Row
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.1f))
+                        Text(" Hoặc đăng nhập nhanh bằng ", color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.1f))
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+                    ) {
+                        SocialLoginButton(
+                            logo = "🌐",
+                            backgroundColor = Color(0xFF1A1A1E),
+                            borderColor = Color.White.copy(alpha = 0.12f),
+                            onClick = {
+                                socialPlatform = "Google"
+                                isSocialLoading = true
+                            }
+                        )
+                        
+                        SocialLoginButton(
+                            logo = "🍎",
+                            backgroundColor = Color(0xFF1A1A1E),
+                            borderColor = Color.White.copy(alpha = 0.12f),
+                            onClick = {
+                                socialPlatform = "Apple"
+                                isSocialLoading = true
+                            }
+                        )
+
+                        SocialLoginButton(
+                            logo = "🔵",
+                            backgroundColor = Color(0xFF1A1A1E),
+                            borderColor = Color.White.copy(alpha = 0.12f),
+                            onClick = {
+                                socialPlatform = "Facebook"
+                                isSocialLoading = true
+                            }
+                        )
                     }
                 }
             }
@@ -352,6 +693,55 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(40.dp))
+            }
+        }
+
+        // Mock Social Connection Dialog
+        if (isSocialLoading) {
+            AlertDialog(
+                onDismissRequest = { isSocialLoading = false },
+                confirmButton = {},
+                title = {
+                    Text(
+                        "Đang kết nối $socialPlatform... 🚀",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        CircularProgressIndicator(color = PrimaryCoral)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Vui lòng đợi giây lát để xác thực tài khoản $socialPlatform.",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = Color(0xFF1F1D23)
+            )
+            
+            LaunchedEffect(isSocialLoading) {
+                if (isSocialLoading) {
+                    delay(2000L)
+                    isSocialLoading = false
+                    val mockName = when (socialPlatform) {
+                        "Google" -> "Mèo Vàng Google 🦁"
+                        "Apple" -> "Táo Khuyết Sành Điệu 🍎"
+                        else -> "Bé Thỏ Facebook 🐰"
+                    }
+                    viewModel.login("0987654321", mockName, "🦊")
+                    Toast.makeText(context, "Kết nối & Đăng nhập thành công qua $socialPlatform! 🎉", Toast.LENGTH_LONG).show()
+                }
             }
         }
     } else {
@@ -1095,6 +1485,29 @@ fun ProfileScreen(
             },
             containerColor = DarkSurface,
             shape = RoundedCornerShape(12.dp)
+        )
+    }
+}
+
+@Composable
+fun SocialLoginButton(
+    logo: String,
+    backgroundColor: Color,
+    borderColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(50.dp)
+            .clip(CircleShape)
+            .background(backgroundColor)
+            .border(1.dp, borderColor, CircleShape)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = logo,
+            fontSize = 22.sp
         )
     }
 }

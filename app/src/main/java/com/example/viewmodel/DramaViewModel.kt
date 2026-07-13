@@ -178,6 +178,37 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Spin mechanics
+    private val _spinAdRewardStatus = MutableSharedFlow<Int>()
+    val spinAdRewardStatus = _spinAdRewardStatus.asSharedFlow()
+
+    fun useSpin(onSuccess: () -> Unit, onFailure: () -> Unit) {
+        viewModelScope.launch {
+            val success = repository.useSpin()
+            if (success) onSuccess() else onFailure()
+        }
+    }
+
+    fun watchAdAndEarnSpins() {
+        viewModelScope.launch {
+            val earned = repository.watchAdAndEarnSpins()
+            _spinAdRewardStatus.emit(earned)
+        }
+    }
+
+    fun exchangeCoinsForSpins(coinCost: Int, spinAmount: Int, onSuccess: () -> Unit, onFailure: () -> Unit) {
+        viewModelScope.launch {
+            val success = repository.exchangeCoinsForSpins(coinCost, spinAmount)
+            if (success) onSuccess() else onFailure()
+        }
+    }
+
+    fun checkAndResetDailySpins() {
+        viewModelScope.launch {
+            repository.checkAndResetDailySpins()
+        }
+    }
+
     fun unlockEpisode(dramaId: Int, episodeNumber: Int, onSuccess: () -> Unit = {}, onFailure: () -> Unit = {}) {
         viewModelScope.launch {
             val success = repository.unlockEpisode(dramaId, episodeNumber)
