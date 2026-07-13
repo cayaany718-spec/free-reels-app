@@ -94,7 +94,6 @@ fun ProfileScreen(
     // Custom Google and Facebook login states
     var showGoogleChooser by remember { mutableStateOf(false) }
     var isGoogleConnecting by remember { mutableStateOf(false) }
-    var showGoogleNotificationBanner by remember { mutableStateOf(false) }
     var lastNotifiedGoogleEmail by remember { mutableStateOf("") }
     
     // Add custom/real Google accounts
@@ -122,7 +121,6 @@ fun ProfileScreen(
 
     var showFacebookChooser by remember { mutableStateOf(false) }
     var isFacebookConnecting by remember { mutableStateOf(false) }
-    var showFacebookNotificationBanner by remember { mutableStateOf(false) }
     var lastNotifiedFacebookName by remember { mutableStateOf("") }
     var showAddCustomFacebookProfile by remember { mutableStateOf(false) }
     var customFacebookNameInput by remember { mutableStateOf("") }
@@ -666,8 +664,9 @@ fun ProfileScreen(
                     val shortName = socialPlatform
                     val avatar = if (shortName.contains("Bình")) "🦊" else if (shortName.contains("Linh")) "🌸" else "🍿"
                     viewModel.login("0987654321", shortName, avatar)
-                    showGoogleNotificationBanner = true
-                    Toast.makeText(context, "Đăng nhập qua Google thành công! 🎉", Toast.LENGTH_SHORT).show()
+                    val emailToSend = if (lastNotifiedGoogleEmail.isNotBlank()) lastNotifiedGoogleEmail else "tranbi200000@gmail.com"
+                    viewModel.sendGmailNotification(emailToSend, shortName)
+                    Toast.makeText(context, "Đăng nhập Google thành công! Cảnh báo bảo mật đăng nhập đã được gửi tới Gmail ($emailToSend). 🎉", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -917,7 +916,6 @@ fun ProfileScreen(
                     delay(1500L)
                     isFacebookConnecting = false
                     viewModel.login("0987654321", "Nguyễn Văn Hùng 🦁", "🦁")
-                    showFacebookNotificationBanner = true
                     Toast.makeText(context, "Đăng nhập qua Facebook thành công! 🎉", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -1708,206 +1706,6 @@ fun ProfileScreen(
             shape = RoundedCornerShape(12.dp)
         )
     }
-
-    // --- MOCK NOTIFICATION BANNERS OVERLAYS ---
-    // Automatic dismissal for Google Security Banner
-    LaunchedEffect(showGoogleNotificationBanner) {
-        if (showGoogleNotificationBanner) {
-            delay(6000L)
-            showGoogleNotificationBanner = false
-        }
-    }
-
-    // Automatic dismissal for Facebook Security Banner
-    LaunchedEffect(showFacebookNotificationBanner) {
-        if (showFacebookNotificationBanner) {
-            delay(6000L)
-            showFacebookNotificationBanner = false
-        }
-    }
-
-    // Gmail Notification Banner Animated Overlay
-    AnimatedVisibility(
-        visible = showGoogleNotificationBanner,
-        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-        modifier = Modifier
-            .fillMaxWidth()
-            .align(Alignment.TopCenter)
-            .padding(16.dp)
-            .systemBarsPadding()
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, Color(0xFFE8EAED), RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF202124)), // Modern dark Google Slate
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        GoogleLogo(modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1.0f)) {
-                        Text(
-                            text = "📧 Gmail - Cảnh báo bảo mật",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            text = "Vừa xong",
-                            fontSize = 10.sp,
-                            color = Color.White.copy(alpha = 0.5f)
-                        )
-                    }
-                    IconButton(
-                        onClick = { showGoogleNotificationBanner = false },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = "MovieBox vừa kết nối tài khoản Google của bạn ($lastNotifiedGoogleEmail). Chúng tôi đã gửi một hòm thư cảnh báo bảo mật đăng nhập đến email này để xác thực thiết bị.",
-                    fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.85f),
-                    lineHeight = 16.sp
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = {
-                            showGoogleNotificationBanner = false
-                            Toast.makeText(context, "Đã mở hòm thư: $lastNotifiedGoogleEmail để kiểm tra bảo mật! 📬", Toast.LENGTH_LONG).show()
-                        }
-                    ) {
-                        Text(
-                            text = "Mở ứng dụng Gmail 📬",
-                            color = Color(0xFF4285F4),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // Facebook Notification Banner Animated Overlay
-    AnimatedVisibility(
-        visible = showFacebookNotificationBanner,
-        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-        modifier = Modifier
-            .fillMaxWidth()
-            .align(Alignment.TopCenter)
-            .padding(16.dp)
-            .systemBarsPadding()
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, Color(0xFF1877F2).copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF242526)), // Facebook Dark container color
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF1877F2)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        FacebookLogo(modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1.0f)) {
-                        Text(
-                            text = "🔔 Facebook - Thông báo bảo mật",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            text = "Vừa xong",
-                            fontSize = 10.sp,
-                            color = Color.White.copy(alpha = 0.5f)
-                        )
-                    }
-                    IconButton(
-                        onClick = { showFacebookNotificationBanner = false },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = "Đăng nhập thành công! Thiết bị của bạn vừa truy cập ứng dụng MovieBox thông qua Facebook. Lịch sử đăng nhập và cảnh báo bảo mật đã được đồng bộ hóa và lưu trữ trên hệ thống Facebook của bạn.",
-                    fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.85f),
-                    lineHeight = 16.sp
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = {
-                            showFacebookNotificationBanner = false
-                            Toast.makeText(context, "Đã lưu trữ và gửi cảnh báo đến trung tâm bảo mật Facebook của bạn! 🛡️", Toast.LENGTH_LONG).show()
-                        }
-                    ) {
-                        Text(
-                            text = "Xem chi tiết hệ thống 🛡️",
-                            color = Color(0xFF1877F2),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-
 
 }
 }

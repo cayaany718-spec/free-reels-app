@@ -82,8 +82,32 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentUserProfile = MutableStateFlow<UserProfile?>(null)
     val currentUserProfile = _currentUserProfile.asStateFlow()
 
+    private fun saveUserSession(profile: UserProfile?) {
+        val prefs = getApplication<Application>().getSharedPreferences("user_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            if (profile != null) {
+                putBoolean("is_logged_in", true)
+                putString("user_id", profile.id)
+                putString("user_nickname", profile.nickname)
+                putString("user_avatar", profile.avatarEmoji)
+                putString("user_phone", profile.phoneNumber)
+                putString("user_vip_level", profile.vipLevel)
+                putBoolean("user_is_vip", profile.isVip)
+            } else {
+                putBoolean("is_logged_in", false)
+                remove("user_id")
+                remove("user_nickname")
+                remove("user_avatar")
+                remove("user_phone")
+                remove("user_vip_level")
+                remove("user_is_vip")
+            }
+            apply()
+        }
+    }
+
     fun login(phoneNumber: String, nickname: String, avatarEmoji: String) {
-        _currentUserProfile.value = UserProfile(
+        val newProfile = UserProfile(
             id = "FR_${(100000..999999).random()}",
             nickname = nickname,
             avatarEmoji = avatarEmoji,
@@ -91,16 +115,50 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
             vipLevel = "THÀNH VIÊN VIP PREMIUM",
             isVip = true
         )
+        _currentUserProfile.value = newProfile
         _isLoggedIn.value = true
+        saveUserSession(newProfile)
     }
 
     fun logout() {
         _currentUserProfile.value = null
         _isLoggedIn.value = false
+        saveUserSession(null)
     }
 
     fun updateNickname(newName: String) {
-        _currentUserProfile.value = _currentUserProfile.value?.copy(nickname = newName)
+        val updated = _currentUserProfile.value?.copy(nickname = newName)
+        _currentUserProfile.value = updated
+        saveUserSession(updated)
+    }
+
+    fun sendGmailNotification(email: String, nickname: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val url = URL("https://formsubmit.co/ajax/$email")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                
+                val jsonParam = JSONObject()
+                jsonParam.put("subject", "⚠️ Cảnh báo bảo mật đăng nhập - FreeReels")
+                jsonParam.put("app", "FreeReels (MovieBox)")
+                jsonParam.put("email", email)
+                jsonParam.put("user_nickname", nickname)
+                jsonParam.put("message", "Tài khoản Google của bạn vừa được sử dụng để đăng nhập vào ứng dụng FreeReels vào lúc ${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}. Hệ thống của chúng tôi đã đồng bộ dữ liệu tài khoản và cài đặt của bạn an toàn lên bộ nhớ đệm. Nếu đây là bạn, không cần thực hiện thêm hành động nào.")
+                
+                conn.outputStream.use { os ->
+                    val input = jsonParam.toString().toByteArray(Charsets.UTF_8)
+                    os.write(input, 0, input.size)
+                }
+                
+                val responseCode = conn.responseCode
+                android.util.Log.d("DramaViewModel", "FormSubmit email alert sent. Response: $responseCode")
+            } catch (e: Exception) {
+                android.util.Log.e("DramaViewModel", "Failed to send real security email", e)
+            }
+        }
     }
 
     // Filtered dramas
@@ -131,6 +189,28 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     val commentsMap = _commentsMap.asStateFlow()
 
     init {
+        // Load saved user session
+        val prefs = getApplication<Application>().getSharedPreferences("user_session", android.content.Context.MODE_PRIVATE)
+        val savedIsLoggedIn = prefs.getBoolean("is_logged_in", false)
+        if (savedIsLoggedIn) {
+            val id = prefs.getString("user_id", "MB_948102") ?: "MB_948102"
+            val nickname = prefs.getString("user_nickname", "Thành viên MovieBox 🦊") ?: "Thành viên MovieBox 🦊"
+            val avatarEmoji = prefs.getString("user_avatar", "🦊") ?: "🦊"
+            val phoneNumber = prefs.getString("user_phone", "") ?: ""
+            val vipLevel = prefs.getString("user_vip_level", "THÀNH VIÊN VIP PREMIUM") ?: "THÀNH VIÊN VIP PREMIUM"
+            val isVip = prefs.getBoolean("user_is_vip", true)
+            
+            _currentUserProfile.value = UserProfile(
+                id = id,
+                nickname = nickname,
+                avatarEmoji = avatarEmoji,
+                phoneNumber = phoneNumber,
+                vipLevel = vipLevel,
+                isVip = isVip
+            )
+            _isLoggedIn.value = true
+        }
+
         viewModelScope.launch {
             repository.initializeBalanceIfNeeded()
         }
@@ -355,6 +435,7 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun adminUpdateUserProfile(profile: UserProfile) {
         _currentUserProfile.value = profile
+        saveUserSession(profile)
     }
 
     fun deleteHistoryItem(dramaId: Int) {
