@@ -60,7 +60,8 @@ fun DetailScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val drama = remember(dramaId) { viewModel.allDramas.find { it.id == dramaId } }
+    val dramasList by viewModel.allDramas.collectAsStateWithLifecycle()
+    val drama = remember(dramaId, dramasList) { dramasList.find { it.id == dramaId } }
     val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
 
     if (drama == null) {

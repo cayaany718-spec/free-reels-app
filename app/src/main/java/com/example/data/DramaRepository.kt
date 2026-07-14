@@ -11,13 +11,21 @@ class DramaRepository(context: Context) {
     private val unlockedEpisodeDao = db.unlockedEpisodeDao()
     private val userBalanceDao = db.userBalanceDao()
 
-    // 1. Get static list of dramas
-    fun getDramas(): List<Drama> = MockData.dramas
+    private var dynamicDramas: List<Drama> = MockData.dramas
+    private var dynamicEpisodes: Map<Int, List<Episode>> = MockData.episodes
 
-    fun getDramaById(id: Int): Drama? = MockData.dramas.find { it.id == id }
+    fun setDynamicData(dramas: List<Drama>, episodes: Map<Int, List<Episode>>) {
+        dynamicDramas = dramas
+        dynamicEpisodes = episodes
+    }
+
+    // 1. Get static list of dramas
+    fun getDramas(): List<Drama> = dynamicDramas
+
+    fun getDramaById(id: Int): Drama? = dynamicDramas.find { it.id == id }
 
     fun getEpisodesForDrama(dramaId: Int): List<Episode> {
-        val staticEps = MockData.episodes[dramaId]
+        val staticEps = dynamicEpisodes[dramaId]
         if (staticEps != null) return staticEps
         
         // Dynamically generate episodes if not statically mapped

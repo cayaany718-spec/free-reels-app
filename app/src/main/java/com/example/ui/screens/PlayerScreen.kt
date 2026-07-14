@@ -152,11 +152,12 @@ fun PlayerScreen(
             currentProgress = 0f
         } else {
             // End of current drama, let's continuous-scroll to the next drama's first episode!
-            val currentDramaIndex = viewModel.allDramas.indexOfFirst { it.id == drama.id }
-            val nextDrama = if (currentDramaIndex != -1 && currentDramaIndex < viewModel.allDramas.lastIndex) {
-                viewModel.allDramas[currentDramaIndex + 1]
+            val dramasList = viewModel.allDramas.value
+            val currentDramaIndex = dramasList.indexOfFirst { it.id == drama.id }
+            val nextDrama = if (currentDramaIndex != -1 && currentDramaIndex < dramasList.lastIndex) {
+                dramasList[currentDramaIndex + 1]
             } else {
-                viewModel.allDramas.firstOrNull() // Loop back to first drama
+                dramasList.firstOrNull() // Loop back to first drama
             }
             if (nextDrama != null) {
                 val nextDramaEps = viewModel.getEpisodesForDrama(nextDrama.id)
@@ -180,11 +181,12 @@ fun PlayerScreen(
             currentProgress = 0f
         } else {
             // Start of current drama, let's continuous-scroll to the previous drama's last episode!
-            val currentDramaIndex = viewModel.allDramas.indexOfFirst { it.id == drama.id }
+            val dramasList = viewModel.allDramas.value
+            val currentDramaIndex = dramasList.indexOfFirst { it.id == drama.id }
             val prevDrama = if (currentDramaIndex > 0) {
-                viewModel.allDramas[currentDramaIndex - 1]
+                dramasList[currentDramaIndex - 1]
             } else {
-                viewModel.allDramas.lastOrNull() // Loop to last drama
+                dramasList.lastOrNull() // Loop to last drama
             }
             if (prevDrama != null) {
                 val prevDramaEps = viewModel.getEpisodesForDrama(prevDrama.id)

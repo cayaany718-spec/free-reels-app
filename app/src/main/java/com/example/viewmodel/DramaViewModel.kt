@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -44,9 +45,12 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     val updateCheckMessage = _updateCheckMessage.asStateFlow()
     
     var updateConfigUrl = "https://raw.githubusercontent.com/tranbi200000/moviebox-configs/main/update.json"
+    var dramasConfigUrl = "https://raw.githubusercontent.com/tranbi200000/moviebox-configs/main/dramas.json"
 
     // Raw static and reactive flows
-    val allDramas = repository.getDramas()
+    private val _allDramas = MutableStateFlow<List<Drama>>(repository.getDramas())
+    val allDramas = _allDramas.asStateFlow()
+
     val favorites = repository.favoritesFlow
     val watchHistory = repository.watchHistoryFlow
     val userBalance = repository.userBalanceFlow
@@ -162,8 +166,8 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Filtered dramas
-    val filteredDramas = combine(_searchQuery, _selectedCategory) { query, category ->
-        var list = allDramas
+    val filteredDramas = combine(_searchQuery, _selectedCategory, _allDramas) { query, category, dramas ->
+        var list = dramas
         if (category != "Tất cả") {
             list = list.filter { it.category.equals(category, ignoreCase = true) }
         }
@@ -174,7 +178,7 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = allDramas
+        initialValue = repository.getDramas()
     )
 
     // Player State
@@ -189,7 +193,19 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     val commentsMap = _commentsMap.asStateFlow()
 
     init {
-        // Load saved user session
+        // 1. Load dynamic dramas and episodes cache (synchronous first, to populate _allDramas before UI initializes)
+        val cachePrefs = getApplication<Application>().getSharedPreferences("dynamic_movie_cache", android.content.Context.MODE_PRIVATE)
+        val cachedJson = cachePrefs.getString("cached_dramas_json", null)
+        if (cachedJson != null) {
+            try {
+                parseAndApplyDramasJson(cachedJson)
+                android.util.Log.d("DramaViewModel", "Successfully loaded dramas from offline cache on startup")
+            } catch (e: Exception) {
+                android.util.Log.e("DramaViewModel", "Error parsing cached dramas JSON on startup", e)
+            }
+        }
+
+        // 2. Load saved user session
         val prefs = getApplication<Application>().getSharedPreferences("user_session", android.content.Context.MODE_PRIVATE)
         val savedIsLoggedIn = prefs.getBoolean("is_logged_in", false)
         if (savedIsLoggedIn) {
@@ -214,12 +230,17 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.initializeBalanceIfNeeded()
         }
-        // Initialize default drama and episode for the Reels tab so it plays immediately
-        val defaultDrama = allDramas.firstOrNull { it.isTrending } ?: allDramas.firstOrNull()
+
+        // 3. Initialize default drama and episode for the Reels tab so it plays immediately
+        val defaultDrama = _allDramas.value.firstOrNull { it.isTrending } ?: _allDramas.value.firstOrNull()
         if (defaultDrama != null) {
             selectDrama(defaultDrama)
         }
-        // Auto check for updates quietly on startup
+
+        // 4. Fetch latest dramas/movies dynamically from GitHub Raw JSON
+        loadDynamicDramasAndEpisodes()
+
+        // 5. Auto check for updates quietly on startup
         checkForUpdates(manual = false, simulate = false)
     }
 
@@ -293,6 +314,118 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearUpdateCheckMessage() {
         _updateCheckMessage.value = null
+    }
+
+    private fun loadDynamicDramasAndEpisodes() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val urlConnection = URL(dramasConfigUrl).openConnection() as HttpURLConnection
+                    urlConnection.connectTimeout = 8000
+                    urlConnection.readTimeout = 8000
+                    val responseCode = urlConnection.responseCode
+                    if (responseCode == 200) {
+                        val responseText = urlConnection.inputStream.bufferedReader().use { it.readText() }
+                        val prefs = getApplication<Application>().getSharedPreferences("dynamic_movie_cache", android.content.Context.MODE_PRIVATE)
+                        prefs.edit().putString("cached_dramas_json", responseText).apply()
+                        withContext(Dispatchers.Main) {
+                            parseAndApplyDramasJson(responseText)
+                            android.util.Log.d("DramaViewModel", "Successfully updated dramas dynamically from GitHub config!")
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("DramaViewModel", "Failed to fetch dynamic dramas from $dramasConfigUrl", e)
+                }
+            }
+        }
+    }
+
+    private fun parseAndApplyDramasJson(jsonString: String) {
+        val root = JSONObject(jsonString)
+        
+        // Parse dramas
+        val dramasArray = root.optJSONArray("dramas") ?: return
+        val parsedDramas = mutableListOf<Drama>()
+        for (i in 0 until dramasArray.length()) {
+            val dObj = dramasArray.getJSONObject(i)
+            parsedDramas.add(
+                Drama(
+                    id = dObj.getInt("id"),
+                    title = dObj.getString("title"),
+                    coverUrl = dObj.getString("coverUrl"),
+                    description = dObj.getString("description"),
+                    category = dObj.getString("category"),
+                    rating = dObj.optDouble("rating", 4.8),
+                    views = dObj.optString("views", "1.0M"),
+                    episodesCount = dObj.getInt("episodesCount"),
+                    isHot = dObj.optBoolean("isHot", false),
+                    isTrending = dObj.optBoolean("isTrending", false),
+                    author = dObj.optString("author", "MovieBox Studio"),
+                    isDubbed = dObj.optBoolean("isDubbed", false),
+                    subtag = dObj.optString("subtag", "Phổ biến"),
+                    overlayBadge = dObj.optString("overlayBadge", null)
+                )
+            )
+        }
+
+        // Parse episodes
+        val episodesObj = root.optJSONObject("episodes")
+        val parsedEpisodes = mutableMapOf<Int, List<Episode>>()
+        if (episodesObj != null) {
+            val keys = episodesObj.keys()
+            while (keys.hasNext()) {
+                val dramaIdStr = keys.next()
+                val dramaId = dramaIdStr.toIntOrNull() ?: continue
+                val epsArray = episodesObj.getJSONArray(dramaIdStr)
+                val epsList = mutableListOf<Episode>()
+                for (j in 0 until epsArray.length()) {
+                    val epObj = epsArray.getJSONObject(j)
+                    epsList.add(
+                        Episode(
+                            id = epObj.optInt("id", dramaId * 1000 + epObj.getInt("episodeNumber")),
+                            dramaId = epObj.optInt("dramaId", dramaId),
+                            episodeNumber = epObj.getInt("episodeNumber"),
+                            title = epObj.getString("title"),
+                            videoUrl = epObj.getString("videoUrl"),
+                            duration = epObj.optString("duration", "01:30"),
+                            isLocked = epObj.optBoolean("isLocked", false)
+                        )
+                    )
+                }
+                parsedEpisodes[dramaId] = epsList
+            }
+        }
+
+        // Apply to repository
+        repository.setDynamicData(parsedDramas, parsedEpisodes)
+
+        // Trigger UI recompositions
+        _allDramas.value = parsedDramas
+        
+        // Also update selected drama if it was changed
+        val currentD = _currentDrama.value
+        if (currentD != null) {
+            val updatedD = parsedDramas.find { it.id == currentD.id }
+            if (updatedD != null) {
+                _currentDrama.value = updatedD
+                val currentEp = _currentEpisode.value
+                val eps = parsedEpisodes[updatedD.id] ?: repository.getEpisodesForDrama(updatedD.id)
+                if (currentEp != null) {
+                    val updatedEp = eps.find { it.episodeNumber == currentEp.episodeNumber }
+                    if (updatedEp != null) {
+                        _currentEpisode.value = updatedEp
+                    } else if (eps.isNotEmpty()) {
+                        _currentEpisode.value = eps.first()
+                    }
+                }
+            }
+        } else {
+            // First time loading, initialize default drama
+            val defaultDrama = parsedDramas.firstOrNull { it.isTrending } ?: parsedDramas.firstOrNull()
+            if (defaultDrama != null) {
+                selectDrama(defaultDrama)
+            }
+        }
     }
 
     // Operations
