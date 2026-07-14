@@ -100,6 +100,7 @@ fun ProfileScreen(
     // Add custom/real Google accounts
     val deviceAccounts = remember { mutableStateListOf<Triple<String, String, String>>() }
     var showAddCustomGoogleAccount by remember { mutableStateOf(false) }
+    var showDeveloperGoogleHelp by remember { mutableStateOf(false) }
     var customGoogleEmailInput by remember { mutableStateOf("") }
     var customGoogleNameInput by remember { mutableStateOf("") }
 
@@ -537,6 +538,32 @@ fun ProfileScreen(
                                 color = Color(0xFF8AB4F8)
                             )
                         }
+                        
+                        Divider(color = Color.White.copy(alpha = 0.05f), thickness = 0.5.dp)
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showDeveloperGoogleHelp = true
+                                }
+                                .padding(vertical = 12.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Cấu hình Google Thật",
+                                tint = Color(0xFFFFB300),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = "Cấu hình Google Sign-In thật ⚡",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFFB300)
+                            )
+                        }
                     }
                 }
             )
@@ -629,6 +656,176 @@ fun ProfileScreen(
                 },
                 shape = RoundedCornerShape(20.dp),
                 containerColor = Color(0xFF202124)
+            )
+        }
+
+        // --- DEVELOPER GOOGLE CONFIGURATION HELP DIALOG ---
+        if (showDeveloperGoogleHelp) {
+            AlertDialog(
+                onDismissRequest = { showDeveloperGoogleHelp = false },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Build,
+                            contentDescription = "Developer Options",
+                            tint = Color(0xFFFFB300),
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Cấu hình Google Sign-In thật",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                },
+                text = {
+                    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                    val packageText = "com.moviebox.app"
+                    val appSha1 = remember(context) { getAppSha1(context) }
+                    
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item {
+                            Text(
+                                text = "Dành riêng cho bạn để cấu hình Google Cloud Console kết nối thật 100%.",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
+                        
+                        // 1. Package Name
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "1. TÊN GÓI ỨNG DỤNG (PACKAGE NAME):",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF8AB4F8)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = packageText,
+                                            fontSize = 13.sp,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = Color.White,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                clipboardManager.setText(androidx.compose.ui.text.buildAnnotatedString { append(packageText) })
+                                                Toast.makeText(context, "Đã sao chép Package Name!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = "Copy Package Name",
+                                                tint = Color(0xFF8AB4F8),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 2. SHA-1 Fingerprint
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "2. CHỮ KÝ BẢO MẬT (SHA-1 FINGERPRINT):",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF8AB4F8)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = appSha1,
+                                            fontSize = 12.sp,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = Color.White,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                clipboardManager.setText(androidx.compose.ui.text.buildAnnotatedString { append(appSha1) })
+                                                Toast.makeText(context, "Đã sao chép mã SHA-1!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = "Copy SHA-1",
+                                                tint = Color(0xFF8AB4F8),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 3. Step-by-Step Instructions
+                        item {
+                            Text(
+                                text = "HƯỚNG DẪN CẤU HÌNH TRÊN GOOGLE CLOUD CONSOLE:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFFB300)
+                            )
+                        }
+                        
+                        item {
+                            Text(
+                                text = "Bước A: Trên trang Google Cloud Console của bạn (như màn hình bạn đang xem), nhấn vào \"API và dịch vụ\" -> Chọn \"Thông tin xác thực\" (Credentials).\n\n" +
+                                       "Bước B: Nếu chưa cấu hình, chọn tab \"Màn hình đồng ý OAuth\" (OAuth Consent Screen) -> Điền tên ứng dụng của bạn (ví dụ: FreeReels) và lưu lại.\n\n" +
+                                       "Bước C: Nhấn \"Tạo thông tin xác thực\" (Create Credentials) -> Chọn \"Mã ứng dụng khách OAuth\" (OAuth Client ID).\n" +
+                                       "• Loại ứng dụng: Chọn \"Ứng dụng web\" (Web application).\n" +
+                                       "• Nhấn Tạo. Hệ thống sẽ cấp một chuỗi Client ID kết thúc bằng \".apps.googleusercontent.com\". Hãy sao chép chuỗi này.\n\n" +
+                                       "Bước D: Tạo tiếp một OAuth Client ID thứ hai:\n" +
+                                       "• Loại ứng dụng: Chọn \"Android\".\n" +
+                                       "• Tên gói: Dán chính xác package name ở Mục 1 (${packageText}).\n" +
+                                       "• Mã SHA-1: Dán chính xác mã chữ ký ở Mục 2 (${if (appSha1.length > 20) appSha1.take(15) + "..." else appSha1}).\n" +
+                                       "• Nhấn Tạo.\n\n" +
+                                       "Bước E: Vào trang quản trị Supabase -> Chọn bảng \"app_config\" -> Sửa dòng có key là \"google_web_client_id\" và dán mã Client ID Ứng dụng Web (lấy ở Bước C) vào cột value.\n\n" +
+                                       "🎉 Xong! App sẽ tự nhận diện ngay lập tức mà không cần build lại APK mới!",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showDeveloperGoogleHelp = false }) {
+                        Text("Đã hiểu", color = Color(0xFF8AB4F8), fontWeight = FontWeight.Bold)
+                    }
+                },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = Color(0xFF1C1C1E)
             )
         }
 
@@ -2013,3 +2210,45 @@ fun MovieBoxLogoIcon(modifier: Modifier = Modifier) {
         drawSparkle(w * 0.24f, h * 0.78f, w * 0.06f, PrimaryGold)
     }
 }
+
+fun getAppSha1(context: android.content.Context): String {
+    return try {
+        val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                android.content.pm.PackageManager.GET_SIGNATURES
+            )
+        }
+
+        val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            packageInfo.signingInfo?.apkContentsSigners
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.signatures
+        }
+
+        if (signatures != null && signatures.isNotEmpty()) {
+            val md = java.security.MessageDigest.getInstance("SHA-1")
+            val publicKey = md.digest(signatures[0].toByteArray())
+            val hexString = StringBuilder()
+            for (i in publicKey.indices) {
+                val appendString = Integer.toHexString(0xFF and publicKey[i].toInt())
+                if (appendString.length == 1) hexString.append("0")
+                hexString.append(appendString.uppercase(java.util.Locale.US))
+                if (i < publicKey.size - 1) hexString.append(":")
+            }
+            hexString.toString()
+        } else {
+            "Không tìm thấy chữ ký"
+        }
+    } catch (e: Exception) {
+        "Lỗi: ${e.message}"
+    }
+}
+
