@@ -1,21 +1,41 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# -----------------------------------------------------------------------------
+# CODE PROTECTION & OBFUSCATION RULES (Chống xem mã nguồn)
+# -----------------------------------------------------------------------------
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Enable aggressive package renaming and obfuscation flattening
+-repackageclasses 'com.example.shortdrama.obfuscated'
+-allowaccessmodification
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Hide original source file names and strip debugging line numbers
+-renamesourcefileattribute SourceFile
+-keepattributes !SourceFile,!LineNumberTable
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep essential runtime annotations for reflection / serialization libraries (like Retrofit / Moshi)
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+
+# --- Moshi Rules (Keep JSON Serialization Adapters safe from obfuscation issues) ---
+-keep class com.squareup.moshi.** { *; }
+-keep interface com.squareup.moshi.** { *; }
+-keepclassmembers class * {
+    @com.squareup.moshi.Json *;
+}
+-keep class *JsonAdapter { *; }
+
+# --- Retrofit Rules ---
+-keepattributes Signature
+-keep class retrofit2.** { *; }
+-dontwarn retrofit2.**
+-keepclassmembers class * {
+    @retrofit2.http.** <methods>;
+}
+
+# --- Room Database Rules ---
+-keep class * extends androidx.room.RoomDatabase
+-keep class * extends androidx.room.Entity
+-dontwarn androidx.room.**
+
+# --- Keep OkHttp/Okio rules ---
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }

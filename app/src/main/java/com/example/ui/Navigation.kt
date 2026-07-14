@@ -43,7 +43,11 @@ fun AppNavigation(
                     navController.navigate("search")
                 },
                 onNavigateToLibrary = {
-                    navController.navigate("library")
+                    navController.navigate("library") {
+                        popUpTo("home") { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }
