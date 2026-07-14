@@ -85,6 +85,10 @@
                         <i class="fa-solid fa-users-gear text-lg w-5"></i>
                         <span>Người Dùng & Số Dư</span>
                     </button>
+                    <button onclick="switchTab('config')" id="btn-config" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-[#1A191E] transition-all text-sm font-semibold text-left">
+                        <i class="fa-solid fa-gears text-lg w-5"></i>
+                        <span>Cấu Hình Ứng Dụng</span>
+                    </button>
                 </nav>
             </div>
 
@@ -315,6 +319,36 @@
                     </div>
                 </div>
 
+                <!-- TAB: CONFIGURATION -->
+                <div id="tab-config" class="tab-content hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-extrabold text-white">Cấu Hình Ứng Dụng (App Config)</h2>
+                        <p class="text-slate-400 text-sm mt-1">Quản lý các thiết lập động của ứng dụng Android (phiên bản, cập nhật, link tải...).</p>
+                    </div>
+
+                    <!-- Config Table -->
+                    <div class="bg-[#111015] rounded-xl border border-[#1F1E24] overflow-hidden">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-[#16151B] border-b border-[#1F1E24] text-slate-400 uppercase tracking-wider font-bold">
+                                <tr>
+                                    <th class="px-6 py-4">Key</th>
+                                    <th class="px-6 py-4">Value</th>
+                                    <th class="px-6 py-4 text-center">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="configTableBody" class="divide-y divide-[#1F1E24]">
+                                <tr>
+                                    <td colspan="3" class="px-6 py-12 text-center text-slate-500">Đang tải cấu hình từ Supabase...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button onclick="openConfigEditModal()" class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-extrabold text-xs tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-500/10">
+                        <i class="fa-solid fa-plus text-sm"></i>
+                        <span>THÊM CẤU HÌNH MỚI</span>
+                    </button>
+                </div>
+
             </div>
         </main>
     </div>
@@ -523,6 +557,35 @@
                 <div class="border-t border-[#1F1E24] pt-4 flex justify-end gap-3">
                     <button type="button" onclick="closeUserModal()" class="px-4 py-2 bg-transparent hover:bg-[#1A191E] border border-[#2E2B38] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all">Huỷ bỏ</button>
                     <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg text-xs font-extrabold tracking-wider transition-all shadow-lg shadow-amber-500/10">XÁC NHẬN CẬP NHẬT</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIG EDIT/ADD -->
+    <div id="configEditModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-[#111015] border border-[#2E2B38] rounded-2xl w-full max-w-lg shadow-2xl relative overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-[#1F1E24] flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-gears text-emerald-500 text-lg"></i>
+                    <h3 id="configModalTitle" class="font-extrabold text-white text-base">Cấu hình</h3>
+                </div>
+                <button onclick="closeConfigEditModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <form id="configForm" onsubmit="saveConfig(event)" class="p-6 space-y-4">
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Key (Tên cấu hình):</label>
+                    <input type="text" id="formConfigKey" required placeholder="Ví dụ: latest_version" class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-slate-300 text-xs font-bold uppercase tracking-wider">Value (Giá trị):</label>
+                    <input type="text" id="formConfigValue" required placeholder="Ví dụ: 2.0" class="w-full bg-[#1A191E] border border-[#2E2B38] rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono">
+                </div>
+
+                <div class="border-t border-[#1F1E24] pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="closeConfigEditModal()" class="px-4 py-2 bg-transparent hover:bg-[#1A191E] border border-[#2E2B38] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all">Huỷ bỏ</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-extrabold tracking-wider transition-all shadow-lg shadow-emerald-500/10">LƯU CẤU HÌNH</button>
                 </div>
             </form>
         </div>

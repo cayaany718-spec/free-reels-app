@@ -19,6 +19,10 @@ android {
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
+    
+    // TODO: Move these secrets to AI Studio Secrets panel for production
+    buildConfigField("String", "SUPABASE_URL", "\"https://jwzqxbzncuotjrjujhkf.supabase.co\"")
+    buildConfigField("String", "SUPABASE_KEY", "\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3enF4YnpuY3VvdGpyanVqaGtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MzA0NjcsImV4cCI6MjA5OTUwNjQ2N30.GGbbxKGwnShO8xZK28UNM8lrV48AfxYVov-sxjK_tII\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

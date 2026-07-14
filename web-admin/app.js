@@ -132,6 +132,7 @@ function switchTab(tabId) {
             loadEpisodesForDrama();
         }
         else if (tabId === 'users') loadUsersAndBalances();
+        else if (tabId === 'config') loadAppConfig();
     }
 }
 
@@ -168,6 +169,8 @@ async function refreshData() {
             await loadEpisodesForDrama();
         } else if (currentTab === 'users') {
             await loadUsersAndBalances();
+        } else if (currentTab === 'config') {
+            await loadAppConfig();
         }
     } catch (err) {
         console.error("Refresh failed:", err);
@@ -769,4 +772,70 @@ function openUserModal() {
 
 function closeUserModal() {
     document.getElementById('userModal').classList.add('hidden');
+}
+
+// Tab: Config
+async function loadAppConfig() {
+    if (!supabaseClient) return;
+    try {
+        triggerLoadingAnimation(40);
+        const { data, error } = await supabaseClient.from('app_config').select('*').order('key');
+        if (error) throw error;
+        renderConfigTable(data || []);
+        triggerLoadingAnimation(100);
+    } catch (e) {
+        console.error("Load config failed:", e);
+    }
+}
+
+function renderConfigTable(configs) {
+    const tbody = document.getElementById('configTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = configs.map(c => `
+        <tr class="hover:bg-[#16151B] transition-colors border-b border-[#1F1E24]/50">
+            <td class="px-6 py-4 font-mono font-bold text-emerald-500">${c.key}</td>
+            <td class="px-6 py-4 font-mono text-white">${c.value}</td>
+            <td class="px-6 py-4 text-center">
+                <button onclick="editConfig('${c.key}', '${c.value}')" class="p-2 bg-[#1A191E] hover:bg-emerald-500 hover:text-white border border-[#2E2B38] rounded-lg text-emerald-500 transition-all text-xs" title="Sửa"><i class="fa-solid fa-pen"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openConfigEditModal(isEdit = false) {
+    if (!isEdit) {
+        document.getElementById('configForm').reset();
+        document.getElementById('formConfigKey').readOnly = false;
+        document.getElementById('configModalTitle').innerText = "Thêm Cấu Hình";
+    }
+    document.getElementById('configEditModal').classList.remove('hidden');
+}
+
+function closeConfigEditModal() {
+    document.getElementById('configEditModal').classList.add('hidden');
+}
+
+function editConfig(key, value) {
+    document.getElementById('formConfigKey').value = key;
+    document.getElementById('formConfigKey').readOnly = true;
+    document.getElementById('formConfigValue').value = value;
+    document.getElementById('configModalTitle').innerText = "Chỉnh Sửa Cấu Hình";
+    openConfigEditModal(true);
+}
+
+async function saveConfig(event) {
+    event.preventDefault();
+    if (!supabaseClient) return;
+    const key = document.getElementById('formConfigKey').value.trim();
+    const value = document.getElementById('formConfigValue').value.trim();
+    try {
+        triggerLoadingAnimation(50);
+        const { error } = await supabaseClient.from('app_config').upsert({ key, value });
+        if (error) throw error;
+        closeConfigEditModal();
+        await loadAppConfig();
+        alert("Đã lưu cấu hình thành công!");
+    } catch (e) {
+        alert("Lỗi lưu cấu hình: " + e.message);
+    }
 }

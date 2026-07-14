@@ -44,7 +44,6 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     private val _updateCheckMessage = MutableStateFlow<String?>(null)
     val updateCheckMessage = _updateCheckMessage.asStateFlow()
     
-    var updateConfigUrl = "https://raw.githubusercontent.com/tranbi200000/moviebox-configs/main/update.json"
     var dramasConfigUrl = "https://raw.githubusercontent.com/tranbi200000/moviebox-configs/main/dramas.json"
 
     // Raw static and reactive flows
@@ -241,66 +240,41 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
         loadDynamicDramasAndEpisodes()
 
         // 5. Auto check for updates quietly on startup
-        checkForUpdates(manual = false, simulate = false)
+        checkForUpdates(manual = false)
     }
 
-    fun checkForUpdates(manual: Boolean = false, simulate: Boolean = false) {
+    fun checkForUpdates(manual: Boolean = false) {
         viewModelScope.launch {
             _isCheckingUpdate.value = true
             _updateCheckMessage.value = null
             
-            if (simulate) {
-                // Simulate finding a newer version
-                kotlinx.coroutines.delay(1000)
-                _updateVersionName.value = "1.3.0"
-                _updateReleaseNotes.value = "- Hỗ trợ tự động kiểm tra và hiển thị hộp thoại cập nhật trực tiếp cho người dùng!\n- Nâng cấp tính năng liên kết tài khoản Google thật qua Google Credential Manager.\n- Tối ưu hóa tốc độ tải phim ngắn mượt mà gấp 2 lần.\n- Giao diện tối Dark Mode cao cấp chuẩn rạp phim."
-                _updateDownloadUrl.value = "https://example.com/moviebox-latest.apk"
-                _isForceUpdate.value = false
-                _updateAvailable.value = true
-                _isCheckingUpdate.value = false
-                if (manual) {
-                    _updateCheckMessage.value = "Phát hiện bản cập nhật mới v1.3.0!"
-                }
-                return@launch
-            }
-
             try {
-                withContext(Dispatchers.IO) {
-                    val urlConnection = URL(updateConfigUrl).openConnection() as HttpURLConnection
-                    urlConnection.connectTimeout = 5000
-                    urlConnection.readTimeout = 5000
-                    try {
-                        val data = urlConnection.inputStream.bufferedReader().use { it.readText() }
-                        val json = JSONObject(data)
-                        val serverVersionCode = json.optInt("versionCode", 0)
-                        val serverVersionName = json.optString("versionName", "1.0.0")
-                        val downloadUrl = json.optString("downloadUrl", "")
-                        val releaseNotes = json.optString("releaseNotes", "")
-                        val forceUpdate = json.optBoolean("isForceUpdate", false)
+                val config = AppUpdateRepository().getAppConfig()
+                val serverVersionCode = config["latest_version_code"]?.toIntOrNull() ?: 0
+                val serverVersionName = config["latest_version_name"] ?: "1.0.0"
+                val downloadUrl = config["latest_download_url"] ?: ""
+                val releaseNotes = config["latest_release_notes"] ?: ""
+                val forceUpdate = config["latest_force_update"]?.toBoolean() ?: false
 
-                        if (serverVersionCode > _appVersionCode) {
-                            _updateVersionName.value = serverVersionName
-                            _updateReleaseNotes.value = releaseNotes
-                            _updateDownloadUrl.value = downloadUrl
-                            _isForceUpdate.value = forceUpdate
-                            _updateAvailable.value = true
-                            if (manual) {
-                                _updateCheckMessage.value = "Có bản cập nhật mới v$serverVersionName!"
-                            }
-                        } else {
-                            _updateAvailable.value = false
-                            if (manual) {
-                                _updateCheckMessage.value = "Ứng dụng đang ở phiên bản mới nhất!"
-                            }
-                        }
-                    } finally {
-                        urlConnection.disconnect()
+                if (serverVersionCode > _appVersionCode) {
+                    _updateVersionName.value = serverVersionName
+                    _updateReleaseNotes.value = releaseNotes
+                    _updateDownloadUrl.value = downloadUrl
+                    _isForceUpdate.value = forceUpdate
+                    _updateAvailable.value = true
+                    if (manual) {
+                        _updateCheckMessage.value = "Có bản cập nhật mới v$serverVersionName!"
+                    }
+                } else {
+                    _updateAvailable.value = false
+                    if (manual) {
+                        _updateCheckMessage.value = "Ứng dụng đang ở phiên bản mới nhất!"
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 if (manual) {
-                    _updateCheckMessage.value = "Lỗi kết nối máy chủ cập nhật: ${e.localizedMessage}"
+                    _updateCheckMessage.value = "Lỗi kết nối máy chủ: ${e.localizedMessage}"
                 }
             } finally {
                 _isCheckingUpdate.value = false

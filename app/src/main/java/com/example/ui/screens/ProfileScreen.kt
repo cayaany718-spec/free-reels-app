@@ -1455,7 +1455,7 @@ fun ProfileScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { viewModel.checkForUpdates(manual = true, simulate = false) }
+                            .clickable { viewModel.checkForUpdates(manual = true) }
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
