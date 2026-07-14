@@ -75,6 +75,7 @@ fun ProfileScreen(
     val isLoggedIn by viewModel.isLoggedIn.collectAsStateWithLifecycle()
     val currentUserProfile by viewModel.currentUserProfile.collectAsStateWithLifecycle()
     val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
+    val googleWebClientId by viewModel.googleWebClientId.collectAsStateWithLifecycle()
 
     // Observe dynamic app update toast messages
     val updateCheckMessage by viewModel.updateCheckMessage.collectAsStateWithLifecycle()
@@ -274,10 +275,11 @@ fun ProfileScreen(
                         onClick = {
                             coroutineScope.launch {
                                 try {
+                                    val targetClientId = if (!googleWebClientId.isNullOrBlank()) googleWebClientId!! else "dummy_client_id.apps.googleusercontent.com"
                                     val credentialManager = androidx.credentials.CredentialManager.create(context)
                                     val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
                                         .setFilterByAuthorizedAccounts(false)
-                                        .setServerClientId("dummy_client_id.apps.googleusercontent.com")
+                                        .setServerClientId(targetClientId)
                                         .setAutoSelectEnabled(false)
                                         .build()
                                     val request = androidx.credentials.GetCredentialRequest.Builder()
@@ -295,7 +297,13 @@ fun ProfileScreen(
                                         showGoogleChooser = true
                                     }
                                 } catch (e: Exception) {
-                                    // Fallback to our gorgeous accounts chooser immediately!
+                                    e.printStackTrace()
+                                    val isDummy = googleWebClientId.isNullOrBlank()
+                                    if (isDummy) {
+                                        Toast.makeText(context, "Chưa cấu hình Google Web Client ID trên Supabase. Đang mở danh sách tài khoản mô phỏng...", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Lỗi kết nối Google: ${e.localizedMessage}. Đang mở danh sách tài khoản mô phỏng...", Toast.LENGTH_LONG).show()
+                                    }
                                     showGoogleChooser = true
                                 }
                             }

@@ -64,6 +64,9 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     private val _downloadProgress = MutableStateFlow(0f)
     val downloadProgress = _downloadProgress.asStateFlow()
     
+    private val _googleWebClientId = MutableStateFlow<String?>(null)
+    val googleWebClientId = _googleWebClientId.asStateFlow()
+    
     var dramasConfigUrl = "https://raw.githubusercontent.com/tranbi200000/moviebox-configs/main/dramas.json"
 
     // Raw static and reactive flows
@@ -275,6 +278,13 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
                 val downloadUrl = config["latest_download_url"] ?: ""
                 val releaseNotes = config["latest_release_notes"] ?: ""
                 val forceUpdate = config["latest_force_update"]?.toBoolean() ?: false
+
+                // Fetch Google Client ID from Supabase
+                config["google_web_client_id"]?.let { id ->
+                    if (id.isNotBlank()) {
+                        _googleWebClientId.value = id.trim()
+                    }
+                }
 
                 if (serverVersionCode > _appVersionCode) {
                     _updateVersionName.value = serverVersionName
