@@ -17,8 +17,8 @@ android {
     applicationId = "com.moviebox.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "2.0"
     
     // TODO: Move these secrets to AI Studio Secrets panel for production
     buildConfigField("String", "SUPABASE_URL", "\"https://jwzqxbzncuotjrjujhkf.supabase.co\"")
