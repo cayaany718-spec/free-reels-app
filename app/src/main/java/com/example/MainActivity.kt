@@ -190,11 +190,13 @@ fun AppUpdateDialog(
     val updateReleaseNotes by viewModel.updateReleaseNotes.collectAsStateWithLifecycle()
     val updateDownloadUrl by viewModel.updateDownloadUrl.collectAsStateWithLifecycle()
     val isForceUpdate by viewModel.isForceUpdate.collectAsStateWithLifecycle()
+    val isDownloading by viewModel.isDownloading.collectAsStateWithLifecycle()
+    val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
 
     if (updateAvailable) {
         AlertDialog(
             onDismissRequest = {
-                if (!isForceUpdate) {
+                if (!isForceUpdate && !isDownloading) {
                     viewModel.dismissUpdateDialog()
                 }
             },
@@ -210,7 +212,7 @@ fun AppUpdateDialog(
                         modifier = Modifier.size(28.dp)
                     )
                     Text(
-                        text = "Phát hiện cập nhật mới! 🚀",
+                        text = if (isDownloading) "Đang tải cập nhật..." else "Phát hiện cập nhật mới! 🚀",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -222,75 +224,117 @@ fun AppUpdateDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Phiên bản mới nhất: v$updateVersionName",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = PrimaryGold
-                    )
-                    
-                    Text(
-                        text = "Phiên bản hiện tại: v${viewModel.appVersionName}",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.5f)
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = "Những thay đổi mới:",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
+                    if (isDownloading) {
+                        Text(
+                            text = "Vui lòng không đóng ứng dụng trong khi đang tải.",
+                            fontSize = 13.sp,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        LinearProgressIndicator(
+                            progress = downloadProgress,
+                            modifier = Modifier.fillMaxWidth().height(8.dp),
+                            color = PrimaryCoral,
+                            trackColor = Color.White.copy(alpha = 0.15f)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = updateReleaseNotes,
+                                text = "Đang tải xuống...",
                                 fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.85f),
-                                lineHeight = 18.sp
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                            Text(
+                                text = "${(downloadProgress * 100).toInt()}%",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryGold
                             )
                         }
-                    }
-
-                    if (isForceUpdate) {
+                    } else {
                         Text(
-                            text = "(*) Đây là bản cập nhật bắt buộc để tiếp tục sử dụng ứng dụng ổn định nhất.",
-                            fontSize = 11.sp,
-                            color = PrimaryCoral,
-                            fontWeight = FontWeight.Medium
+                            text = "Phiên bản mới nhất: v$updateVersionName",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PrimaryGold
                         )
+                        
+                        Text(
+                            text = "Phiên bản hiện tại: v${viewModel.appVersionName}",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.5f)
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "Những thay đổi mới:",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = updateReleaseNotes,
+                                    fontSize = 12.sp,
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+
+                        if (isForceUpdate) {
+                            Text(
+                                text = "(*) Đây là bản cập nhật bắt buộc để tiếp tục sử dụng ứng dụng ổn định nhất.",
+                                fontSize = 11.sp,
+                                color = PrimaryCoral,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateDownloadUrl))
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Không thể mở liên kết tải xuống!", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("Cập nhật ngay", fontWeight = FontWeight.Bold, color = Color.White)
+                if (!isDownloading) {
+                    Button(
+                        onClick = {
+                            if (updateDownloadUrl.endsWith(".apk", ignoreCase = true)) {
+                                viewModel.downloadAndInstallApk(context, updateDownloadUrl)
+                            } else {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateDownloadUrl))
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Không thể mở liên kết tải xuống!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Cập nhật ngay", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
             },
             dismissButton = {
-                if (!isForceUpdate) {
+                if (!isForceUpdate && !isDownloading) {
                     TextButton(
                         onClick = { viewModel.dismissUpdateDialog() }
                     ) {

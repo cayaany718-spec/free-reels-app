@@ -57,6 +57,12 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _updateCheckMessage = MutableStateFlow<String?>(null)
     val updateCheckMessage = _updateCheckMessage.asStateFlow()
+
+    private val _isDownloading = MutableStateFlow(false)
+    val isDownloading = _isDownloading.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow(0f)
+    val downloadProgress = _downloadProgress.asStateFlow()
     
     var dramasConfigUrl = "https://raw.githubusercontent.com/tranbi200000/moviebox-configs/main/dramas.json"
 
@@ -298,6 +304,81 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissUpdateDialog() {
         _updateAvailable.value = false
+    }
+
+    fun downloadAndInstallApk(context: android.content.Context, downloadUrl: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isDownloading.value = true
+            _downloadProgress.value = 0f
+            try {
+                val url = java.net.URL(downloadUrl)
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.connect()
+
+                if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
+                    throw java.io.IOException("Mã phản hồi từ máy chủ: " + connection.responseCode + " " + connection.responseMessage)
+                }
+
+                val fileLength = connection.contentLength
+                val input = connection.inputStream
+                val apkFile = java.io.File(context.externalCacheDir, "update.apk")
+                if (apkFile.exists()) {
+                    apkFile.delete()
+                }
+
+                val output = java.io.FileOutputStream(apkFile)
+                val data = ByteArray(4096)
+                var total: Long = 0
+                var count: Int
+                while (input.read(data).also { count = it } != -1) {
+                    total += count
+                    if (fileLength > 0) {
+                        _downloadProgress.value = total.toFloat() / fileLength
+                    }
+                    output.write(data, 0, count)
+                }
+
+                output.flush()
+                output.close()
+                input.close()
+
+                _isDownloading.value = false
+                _downloadProgress.value = 1f
+
+                installApk(context, apkFile)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _isDownloading.value = false
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Lỗi tải xuống: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun installApk(context: android.content.Context, apkFile: java.io.File) {
+        try {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+            val apkUri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    apkFile
+                )
+            } else {
+                android.net.Uri.fromFile(apkFile)
+            }
+
+            intent.setDataAndType(apkUri, "application/vnd.android.package-archive")
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(context, "Lỗi mở trình cài đặt: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     fun clearUpdateCheckMessage() {

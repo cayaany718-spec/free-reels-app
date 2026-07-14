@@ -3,6 +3,7 @@ package com.example.api
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Query
+import com.squareup.moshi.JsonClass
 
 interface SupabaseApi {
     @GET("rest/v1/app_config")
@@ -13,6 +14,7 @@ interface SupabaseApi {
     ): List<AppConfigRow>
 }
 
+@JsonClass(generateAdapter = true)
 data class AppConfigRow(
     val key: String,
     val value: String
