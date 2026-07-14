@@ -776,7 +776,20 @@ function closeUserModal() {
 
 // Tab: Config
 async function loadAppConfig() {
-    if (!supabaseClient) return;
+    const tbody = document.getElementById('configTableBody');
+    if (!supabaseClient) {
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-6 py-12 text-center text-amber-500">
+                        <i class="fa-solid fa-triangle-exclamation text-2xl mb-2 block"></i>
+                        Vui lòng kết nối với Supabase trước để quản lý cấu hình!
+                    </td>
+                </tr>
+            `;
+        }
+        return;
+    }
     try {
         triggerLoadingAnimation(40);
         const { data, error } = await supabaseClient.from('app_config').select('*').order('key');
@@ -785,28 +798,85 @@ async function loadAppConfig() {
         triggerLoadingAnimation(100);
     } catch (e) {
         console.error("Load config failed:", e);
+        triggerLoadingAnimation(100);
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-6 py-12 text-center text-rose-500">
+                        <i class="fa-solid fa-circle-exclamation text-2xl mb-2 block"></i>
+                        <span class="font-bold">Lỗi tải cấu hình từ Supabase:</span> ${e.message || e}<br>
+                        <p class="text-xs text-slate-400 mt-2 max-w-lg mx-auto leading-relaxed">
+                            Bảng <code class="font-mono text-amber-500">app_config</code> có thể chưa được tạo hoặc RLS chưa được cấu hình đúng. 
+                            Hãy chắc chắn bạn đã chạy mã SQL khởi tạo sau trong tab SQL Editor của Supabase:
+                        </p>
+                        <div class="mt-4 p-4 bg-[#0B0A0F] border border-[#2E2B38] rounded-xl text-left max-w-lg mx-auto overflow-x-auto text-[11px] font-mono select-all text-slate-300 whitespace-pre">-- Khởi tạo bảng cấu hình ứng dụng
+CREATE TABLE IF NOT EXISTS public.app_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.app_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access to app_config" ON public.app_config FOR SELECT USING (true);
+CREATE POLICY "Allow admin to manage app_config" ON public.app_config FOR ALL USING (true);
+
+INSERT INTO public.app_config (key, value) VALUES 
+('latest_version_code', '1'),
+('latest_version_name', '1.0'),
+('latest_download_url', 'https://example.com/latest.apk'),
+('latest_release_notes', 'Phiên bản mới nhất!'),
+('latest_force_update', 'false')
+ON CONFLICT (key) DO NOTHING;</div>
+                    </td>
+                </tr>
+            `;
+        }
     }
 }
 
 function renderConfigTable(configs) {
     const tbody = document.getElementById('configTableBody');
     if (!tbody) return;
+    if (configs.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" class="px-6 py-12 text-center text-slate-500">
+                    <i class="fa-solid fa-folder-open text-2xl mb-2 block"></i>
+                    Chưa có cấu hình nào. Hãy thêm mới!
+                </td>
+            </tr>
+        `;
+        return;
+    }
     tbody.innerHTML = configs.map(c => `
         <tr class="hover:bg-[#16151B] transition-colors border-b border-[#1F1E24]/50">
             <td class="px-6 py-4 font-mono font-bold text-emerald-500">${c.key}</td>
-            <td class="px-6 py-4 font-mono text-white">${c.value}</td>
+            <td class="px-6 py-4 font-mono text-white max-w-md truncate" title="${c.value}">${c.value}</td>
             <td class="px-6 py-4 text-center">
-                <button onclick="editConfig('${c.key}', '${c.value}')" class="p-2 bg-[#1A191E] hover:bg-emerald-500 hover:text-white border border-[#2E2B38] rounded-lg text-emerald-500 transition-all text-xs" title="Sửa"><i class="fa-solid fa-pen"></i></button>
+                <button 
+                    data-key="${c.key}" 
+                    data-value="${encodeURIComponent(c.value)}"
+                    onclick="handleEditConfigClick(this)"
+                    class="p-2 bg-[#1A191E] hover:bg-emerald-500 hover:text-white border border-[#2E2B38] rounded-lg text-emerald-500 transition-all text-xs" 
+                    title="Chỉnh sửa">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
             </td>
         </tr>
     `).join('');
+}
+
+function handleEditConfigClick(btn) {
+    const key = btn.getAttribute('data-key');
+    const value = decodeURIComponent(btn.getAttribute('data-value'));
+    editConfig(key, value);
 }
 
 function openConfigEditModal(isEdit = false) {
     if (!isEdit) {
         document.getElementById('configForm').reset();
         document.getElementById('formConfigKey').readOnly = false;
-        document.getElementById('configModalTitle').innerText = "Thêm Cấu Hình";
+        document.getElementById('configModalTitle').innerText = "Thêm Cấu Hình Mới";
     }
     document.getElementById('configEditModal').classList.remove('hidden');
 }

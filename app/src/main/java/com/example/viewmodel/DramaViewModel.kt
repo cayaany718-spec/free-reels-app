@@ -17,10 +17,24 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = DramaRepository(application)
 
     // Update checking state
-    private val _appVersionCode = 120
+    private val _appVersionCode: Int = try {
+        val pInfo = application.packageManager.getPackageInfo(application.packageName, 0)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            pInfo.longVersionCode.toInt()
+        } else {
+            @Suppress("DEPRECATION")
+            pInfo.versionCode
+        }
+    } catch (e: Exception) {
+        1
+    }
     val appVersionCode = _appVersionCode
     
-    private val _appVersionName = "1.2.0"
+    private val _appVersionName: String = try {
+        application.packageManager.getPackageInfo(application.packageName, 0).versionName ?: "1.0"
+    } catch (e: Exception) {
+        "1.0"
+    }
     val appVersionName = _appVersionName
 
     private val _isCheckingUpdate = MutableStateFlow(false)
