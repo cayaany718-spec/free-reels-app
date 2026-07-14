@@ -138,12 +138,27 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
             nickname = nickname,
             avatarEmoji = avatarEmoji,
             phoneNumber = phoneNumber,
-            vipLevel = "THÀNH VIÊN VIP PREMIUM",
-            isVip = true
+            vipLevel = "THÀNH VIÊN THƯỜNG",
+            isVip = false
         )
         _currentUserProfile.value = newProfile
         _isLoggedIn.value = true
         saveUserSession(newProfile)
+    }
+
+    fun purchaseVip(packageName: String, durationDays: Int) {
+        val profile = _currentUserProfile.value ?: UserProfile(
+            id = "FR_${(100000..999999).random()}",
+            nickname = "Thành viên MovieBox 🦊",
+            avatarEmoji = "🦊"
+        )
+        val updated = profile.copy(
+            isVip = true,
+            vipLevel = packageName
+        )
+        _currentUserProfile.value = updated
+        _isLoggedIn.value = true
+        saveUserSession(updated)
     }
 
     fun logout() {
@@ -235,8 +250,8 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
             val nickname = prefs.getString("user_nickname", "Thành viên MovieBox 🦊") ?: "Thành viên MovieBox 🦊"
             val avatarEmoji = prefs.getString("user_avatar", "🦊") ?: "🦊"
             val phoneNumber = prefs.getString("user_phone", "") ?: ""
-            val vipLevel = prefs.getString("user_vip_level", "THÀNH VIÊN VIP PREMIUM") ?: "THÀNH VIÊN VIP PREMIUM"
-            val isVip = prefs.getBoolean("user_is_vip", true)
+            val vipLevel = prefs.getString("user_vip_level", "THÀNH VIÊN THƯỜNG") ?: "THÀNH VIÊN THƯỜNG"
+            val isVip = prefs.getBoolean("user_is_vip", false)
             
             _currentUserProfile.value = UserProfile(
                 id = id,

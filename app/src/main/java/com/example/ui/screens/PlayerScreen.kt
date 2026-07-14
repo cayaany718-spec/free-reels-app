@@ -6,6 +6,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -65,8 +66,7 @@ fun PlayerScreen(
 
     val currentDrama by viewModel.currentDrama.collectAsStateWithLifecycle()
     val currentEpisode by viewModel.currentEpisode.collectAsStateWithLifecycle()
-    val unlockedList by viewModel.unlockedEpisodes.collectAsStateWithLifecycle()
-    val balance by viewModel.userBalance.collectAsStateWithLifecycle(initialValue = null)
+    val userProfile by viewModel.currentUserProfile.collectAsStateWithLifecycle()
     val commentsMap by viewModel.commentsMap.collectAsStateWithLifecycle()
 
     if (currentDrama == null || currentEpisode == null) {
@@ -84,8 +84,7 @@ fun PlayerScreen(
     val episodes = remember(drama.id) { viewModel.getEpisodesForDrama(drama.id) }
 
     // Check if the current episode is unlocked
-    val compositeId = "${drama.id}_${episode.episodeNumber}"
-    val isUnlocked = episode.episodeNumber <= 3 || unlockedList.contains(compositeId)
+    val isUnlocked = episode.episodeNumber == 1 || userProfile?.isVip == true
 
     // Player controls state
     var isPlaying by remember { mutableStateOf(true) }
@@ -94,6 +93,8 @@ fun PlayerScreen(
     var videoDurationMs by remember { mutableStateOf(1L) }
     var currentPositionMs by remember { mutableStateOf(0L) }
     var showPlayerControls by remember { mutableStateOf(true) }
+
+    var showVipPurchaseDialog by remember { mutableStateOf(false) }
 
     // UI overlays
     var showCommentsSheet by remember { mutableStateOf(false) }
@@ -295,25 +296,17 @@ fun PlayerScreen(
             LockedPremiumView(
                 drama = drama,
                 episode = episode,
-                balance = balance?.coins ?: 0,
                 viewModel = viewModel,
-                onUnlock = {
-                    viewModel.unlockEpisode(
-                        dramaId = drama.id,
-                        episodeNumber = episode.episodeNumber,
-                        onSuccess = {
-                            Toast.makeText(context, viewModel.getString("toast_unlock_success", episode.episodeNumber), Toast.LENGTH_SHORT).show()
-                        },
-                        onFailure = {
-                            Toast.makeText(context, viewModel.getString("toast_insufficient_coins"), Toast.LENGTH_LONG).show()
-                        }
-                    )
-                },
-                onWatchAd = {
-                    isAdRunning = true
-                    adCountdown = 10
-                    isPlaying = false
+                onShowVipDialog = {
+                    showVipPurchaseDialog = true
                 }
+            )
+        }
+
+        if (showVipPurchaseDialog) {
+            VipPurchaseDialog(
+                viewModel = viewModel,
+                onDismiss = { showVipPurchaseDialog = false }
             )
         }
 
@@ -384,22 +377,26 @@ fun PlayerScreen(
                     )
                 }
 
-                // Balance indicator
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("🪙", fontSize = 12.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "${balance?.coins ?: 0} ${viewModel.getString("wallet_balance")}",
-                        color = PrimaryGold,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                // VIP Status indicator
+                val profile by viewModel.currentUserProfile.collectAsStateWithLifecycle()
+                if (profile?.isVip == true) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF2C1E22))
+                            .border(0.5.dp, PrimaryGold, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("👑", fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "VIP Premium",
+                            color = PrimaryGold,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -750,7 +747,6 @@ fun PlayerScreen(
             EpisodesDrawerSheet(
                 episodes = episodes,
                 activeEpisode = episode,
-                unlockedList = unlockedList,
                 viewModel = viewModel,
                 onSelectEpisode = { selectedEp ->
                     viewModel.selectEpisode(drama, selectedEp)
@@ -774,10 +770,8 @@ private fun formatDuration(ms: Long): String {
 fun LockedPremiumView(
     drama: Drama,
     episode: Episode,
-    balance: Int,
     viewModel: DramaViewModel,
-    onUnlock: () -> Unit,
-    onWatchAd: () -> Unit
+    onShowVipDialog: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -827,16 +821,17 @@ fun LockedPremiumView(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = viewModel.getString("locked_title", episode.episodeNumber),
+                text = "Tập phim VIP Premium 👑",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = Color.White,
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = viewModel.getString("episode_locked_desc"),
+                text = "Tập này yêu cầu quyền thành viên VIP. Nâng cấp để xem tiếp và thưởng thức không giới hạn kho phim đặc sắc!",
                 fontSize = 12.sp,
                 color = Color.White.copy(alpha = 0.6f),
                 textAlign = TextAlign.Center,
@@ -845,69 +840,193 @@ fun LockedPremiumView(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // CTA Button 1: Unlock with coins
+            // CTA Button: Buy VIP
             Button(
-                onClick = onUnlock,
+                onClick = onShowVipDialog,
                 modifier = Modifier.fillMaxWidth().height(44.dp).testTag("premium_unlock_button"),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryGold),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    text = viewModel.getString("unlock_with_coins", 10),
+                    text = "Mua Gói VIP Ngay ✨",
                     fontWeight = FontWeight.Bold,
                     color = Color.Black,
                     fontSize = 13.sp
                 )
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // CTA Button 2: Watch Ad to earn coins
-            OutlinedButton(
-                onClick = onWatchAd,
-                modifier = Modifier.fillMaxWidth().height(44.dp).testTag("watch_ad_button"),
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, PrimaryCoral)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.OndemandVideo,
-                    contentDescription = null,
-                    tint = PrimaryCoral,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = viewModel.getString("watch_ad_30"),
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryCoral,
-                    fontSize = 13.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Divider(color = Color.White.copy(alpha = 0.1f))
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Real-time wallet check
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = viewModel.getString("current_balance"),
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = "$balance ${viewModel.getString("wallet_balance")}",
-                    color = PrimaryGold,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
-            }
         }
     }
+}
+
+@Composable
+fun VipPurchaseDialog(
+    viewModel: DramaViewModel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var selectedPackage by remember { mutableStateOf(1) } // 0: Day, 1: Month, 2: Year
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        dismissButton = {},
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color(0xFF1E1D24),
+        modifier = Modifier.testTag("vip_purchase_dialog"),
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Crown Icon with ambient glow
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(PrimaryGold.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "VIP Premium",
+                        tint = PrimaryGold,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "NÂNG CẤP VIP PREMIUM 👑",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Mở khóa kho tàng phim ngắn siêu kịch tính không quảng cáo",
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 15.sp
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Packages List
+                val packages = listOf(
+                    Triple("GÓI VIP NGÀY", "9.000đ", "Thử nghiệm 24h"),
+                    Triple("GÓI VIP THÁNG", "49.000đ", "Khuyên dùng - Tiết kiệm 80%"),
+                    Triple("GÓI VIP NĂM", "299.000đ", "Siêu hời - Tốt nhất")
+                )
+
+                packages.forEachIndexed { index, pkg ->
+                    val isSelected = selectedPackage == index
+                    val borderBrush = if (isSelected) {
+                        Brush.linearGradient(colors = listOf(PrimaryCoral, PrimaryGold))
+                    } else {
+                        Brush.linearGradient(colors = listOf(Color.White.copy(alpha = 0.1f), Color.White.copy(alpha = 0.1f)))
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isSelected) Color(0xFF2E2226) else Color(0xFF151419))
+                            .border(1.5.dp, borderBrush, RoundedCornerShape(14.dp))
+                            .clickable { selectedPackage = index }
+                            .padding(14.dp)
+                            .testTag("vip_package_card_$index")
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = pkg.first,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) PrimaryCoral else Color.White
+                                    )
+                                    if (index == 1) { // Month is hot/recommended
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(PrimaryCoral)
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "HOT",
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = pkg.third,
+                                    fontSize = 10.sp,
+                                    color = Color.White.copy(alpha = 0.5f)
+                                )
+                            }
+                            Text(
+                                text = pkg.second,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryGold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // CTA Button
+                Button(
+                    onClick = {
+                        val chosen = packages[selectedPackage]
+                        val name = chosen.first
+                        viewModel.purchaseVip(name, when(selectedPackage) {
+                            0 -> 1
+                            1 -> 30
+                            else -> 365
+                        })
+                        Toast.makeText(context, "Đăng ký thành công ${chosen.first}! Kích hoạt VIP Premium ⚡🎉", Toast.LENGTH_LONG).show()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                        .testTag("activate_vip_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "Kích hoạt VIP Premium ⚡",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                TextButton(onClick = onDismiss) {
+                    Text("Đóng", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                }
+            }
+        }
+    )
 }
 
 // 3. ADVERTISEMENT SIMULATOR
@@ -1282,11 +1401,12 @@ fun CommentRow(comment: Comment) {
 fun EpisodesDrawerSheet(
     episodes: List<Episode>,
     activeEpisode: Episode,
-    unlockedList: List<String>,
     viewModel: DramaViewModel,
     onSelectEpisode: (Episode) -> Unit,
     onClose: () -> Unit
 ) {
+    val userProfile by viewModel.currentUserProfile.collectAsStateWithLifecycle()
+    val isVip = userProfile?.isVip == true
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1335,8 +1455,7 @@ fun EpisodesDrawerSheet(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(episodes) { episode ->
-                    val compositeId = "${episode.dramaId}_${episode.episodeNumber}"
-                    val isUnlocked = episode.episodeNumber <= 3 || unlockedList.contains(compositeId)
+                    val isUnlocked = episode.episodeNumber == 1 || isVip
                     val isActive = episode.episodeNumber == activeEpisode.episodeNumber
 
                     Row(

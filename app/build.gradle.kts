@@ -52,6 +52,7 @@ android {
     }
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
@@ -61,6 +62,14 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+}
+
+androidComponents {
+  onVariants { variant ->
+    variant.outputs.forEach { output ->
+      (output as? com.android.build.api.variant.impl.VariantOutputImpl)?.outputFileName?.set("MovieBox-${variant.name}.apk")
+    }
+  }
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files

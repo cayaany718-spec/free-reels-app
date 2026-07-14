@@ -14,8 +14,18 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Generate Debug Keystore
-      run: keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 36500 -dname "CN=Android Debug,O=Android,C=US"
+    - name: Restore Debug Keystore
+      run: |
+        if [ -f debug.keystore.base64 ]; then
+          echo "Restoring debug.keystore from debug.keystore.base64..."
+          base64 -d debug.keystore.base64 > debug.keystore
+        elif [ ! -z "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
+          echo "Restoring debug.keystore from GitHub Secrets..."
+          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
+        else
+          echo "No saved keystore found. Generating a temporary random one (this will change the signature on every build)..."
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 36500 -dname "CN=Android Debug,O=Android,C=US"
+        fi
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -35,5 +45,5 @@ jobs:
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: MovieBox-debug
+        path: app/build/outputs/apk/debug/MovieBox-debug.apk

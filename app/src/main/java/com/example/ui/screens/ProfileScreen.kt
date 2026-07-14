@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -299,13 +300,31 @@ fun ProfileScreen(
                                     }
                                 } catch (e: Exception) {
                                     e.printStackTrace()
-                                    val isDummy = googleWebClientId.isNullOrBlank()
-                                    if (isDummy) {
-                                        Toast.makeText(context, "Chưa cấu hình Google Web Client ID trên Supabase. Đang mở danh sách tài khoản mô phỏng...", Toast.LENGTH_LONG).show()
+                                    val isCancelled = e.javaClass.simpleName.contains("Cancel", ignoreCase = true) || 
+                                                     e.message?.contains("cancel", ignoreCase = true) == true
+                                    
+                                    if (isCancelled) {
+                                        Toast.makeText(context, "Đã hủy đăng nhập Google", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        Toast.makeText(context, "Lỗi kết nối Google: ${e.localizedMessage}. Đang mở danh sách tài khoản mô phỏng...", Toast.LENGTH_LONG).show()
+                                        val isDummy = googleWebClientId.isNullOrBlank()
+                                        val preferredAccount = deviceAccounts.find { it.second.contains("tranbi", ignoreCase = true) }
+                                            ?: deviceAccounts.firstOrNull()
+                                            
+                                        if (preferredAccount != null) {
+                                            val (display, email, emoji) = preferredAccount
+                                            lastNotifiedGoogleEmail = email
+                                            socialPlatform = display
+                                            isGoogleConnecting = true
+                                            Toast.makeText(context, "Đang tự động đăng nhập nhanh bằng tài khoản: $email ⚡", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            if (isDummy) {
+                                                Toast.makeText(context, "Chưa cấu hình Google Web Client ID trên Supabase. Đang mở danh sách tài khoản mô phỏng...", Toast.LENGTH_LONG).show()
+                                            } else {
+                                                Toast.makeText(context, "Lỗi kết nối Google: ${e.localizedMessage}. Đang mở danh sách tài khoản mô phỏng...", Toast.LENGTH_LONG).show()
+                                            }
+                                            showGoogleChooser = true
+                                        }
                                     }
-                                    showGoogleChooser = true
                                 }
                             }
                         },
@@ -1313,7 +1332,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 3. Wallet / Coin Purse Card
+            // 3. VIP Premium Subscription Card
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 Box(
@@ -1322,12 +1341,12 @@ fun ProfileScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .background(
                             Brush.radialGradient(
-                                colors = listOf(Color(0xFF2E1C1F), DarkSurface),
+                                colors = listOf(Color(0xFF2C1E22), Color(0xFF151419)),
                                 radius = 600f
                             )
                         )
-                        .border(1.dp, PrimaryCoral.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                        .padding(16.dp)
+                        .border(1.dp, PrimaryGold.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                        .padding(18.dp)
                 ) {
                     Column {
                         Row(
@@ -1337,101 +1356,111 @@ fun ProfileScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "🪙",
-                                    fontSize = 26.sp
+                                    text = "👑",
+                                    fontSize = 28.sp
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = viewModel.getString("wallet_title"),
-                                        fontSize = 12.sp,
-                                        color = GrayText
+                                        text = "Đặc Quyền VIP Premium",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
                                     )
                                     Text(
-                                        text = "${balance?.coins ?: 0} ${viewModel.getString("wallet_balance")}",
-                                        fontSize = 22.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = PrimaryGold,
-                                        modifier = Modifier.testTag("profile_coin_text")
+                                        text = if (profile.isVip) "Đã kích hoạt: ${profile.vipLevel}" else "Chưa kích hoạt đặc quyền VIP",
+                                        fontSize = 12.sp,
+                                        color = if (profile.isVip) PrimaryGold else Color.White.copy(alpha = 0.5f),
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
 
-                            // Checkin button
-                            Button(
-                                onClick = { viewModel.performDailyCheckIn() },
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier
-                                    .height(32.dp)
-                                    .testTag("profile_checkin_button")
-                            ) {
-                                Text(viewModel.getString("btn_checkin"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            if (!profile.isVip) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(PrimaryCoral)
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    Text(
+                                        text = "Nâng cấp",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
-                        Divider(color = BorderColor)
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Divider(color = Color.White.copy(alpha = 0.08f))
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         Text(
-                            text = viewModel.getString("coins_save_promo"),
+                            text = "CHỌN GÓI VIP ĐỂ KÍCH HOẠT NGAY ✨",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = GrayText,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            color = Color.White.copy(alpha = 0.4f),
+                            modifier = Modifier.padding(bottom = 10.dp)
                         )
 
-                        // Top-up packages row
+                        // VIP Packages Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            val packages = listOf(
-                                Triple(100, "9.000đ", viewModel.getString("pkg_popular")),
-                                Triple(500, "45.000đ", viewModel.getString("pkg_good_deal")),
-                                Triple(1000, "89.000đ", viewModel.getString("pkg_super_cheap"))
+                            val vipPackages = listOf(
+                                Triple("GÓI NGÀY", "9.000đ", "VIP 24h"),
+                                Triple("GÓI THÁNG", "49.000đ", "Tiết kiệm 80%"),
+                                Triple("GÓI NĂM", "299.000đ", "Tối ưu nhất")
                             )
 
-                            packages.forEach { pkg ->
+                            vipPackages.forEachIndexed { index, pkg ->
+                                val isCurrentPackage = profile.isVip && profile.vipLevel.contains(pkg.first.split(" ")[1], ignoreCase = true)
+
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(SurfaceVariant)
-                                        .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
-                                        .clickable { viewModel.topUpCoins(pkg.first) }
-                                        .padding(8.dp)
-                                        .testTag("topup_package_${pkg.first}"),
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isCurrentPackage) Color(0xFF2C1E22) else Color(0xFF1C1B20))
+                                        .border(
+                                            width = if (isCurrentPackage) 1.5.dp else 1.dp,
+                                            brush = if (isCurrentPackage) Brush.linearGradient(colors = listOf(PrimaryCoral, PrimaryGold)) else SolidColor(Color.White.copy(alpha = 0.08f)),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable {
+                                            viewModel.purchaseVip(pkg.first, when(index) {
+                                                0 -> 1
+                                                1 -> 30
+                                                else -> 365
+                                            })
+                                            Toast.makeText(context, "Kích hoạt thành công ${pkg.first}! 👑✨", Toast.LENGTH_LONG).show()
+                                        }
+                                        .padding(10.dp)
+                                        .testTag("profile_vip_package_$index"),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = "+${pkg.first} ${viewModel.getString("wallet_balance")}",
-                                        fontSize = 12.sp,
+                                        text = pkg.first,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCurrentPackage) PrimaryCoral else Color.White
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = pkg.second,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = PrimaryGold
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = pkg.second,
-                                        fontSize = 12.sp,
-                                        color = Color.White
+                                        text = pkg.third,
+                                        fontSize = 8.sp,
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        textAlign = TextAlign.Center
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(PrimaryCoral.copy(alpha = 0.15f))
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = pkg.third.uppercase(),
-                                            fontSize = 8.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = PrimaryCoral
-                                        )
-                                    }
                                 }
                             }
                         }

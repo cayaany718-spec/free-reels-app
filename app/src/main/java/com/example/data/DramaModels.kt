@@ -32,7 +32,7 @@ data class UserProfile(
     val nickname: String = "Thành viên MovieBox 🦊",
     val avatarEmoji: String = "🦊",
     val phoneNumber: String = "",
-    val vipLevel: String = "THÀNH VIÊN VIP PREMIUM",
-    val isVip: Boolean = true
+    val vipLevel: String = "THÀNH VIÊN THƯỜNG",
+    val isVip: Boolean = false
 )
 
