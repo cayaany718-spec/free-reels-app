@@ -227,7 +227,7 @@ fun ProfileScreen(
                         onClick = {
                             coroutineScope.launch {
                                 try {
-                                    val targetClientId = if (!googleWebClientId.isNullOrBlank()) googleWebClientId!! else "dummy_client_id.apps.googleusercontent.com"
+                                    val targetClientId = if (!googleWebClientId.isNullOrBlank()) googleWebClientId!! else "820443327477-ttt31uen6kb6ckt5e707bst7v8qk2pud.apps.googleusercontent.com"
                                     val credentialManager = androidx.credentials.CredentialManager.create(context)
                                     val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
                                         .setFilterByAuthorizedAccounts(false)

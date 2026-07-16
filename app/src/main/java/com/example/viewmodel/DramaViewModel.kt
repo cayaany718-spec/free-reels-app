@@ -64,7 +64,7 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     private val _downloadProgress = MutableStateFlow(0f)
     val downloadProgress = _downloadProgress.asStateFlow()
     
-    private val _googleWebClientId = MutableStateFlow<String?>(null)
+    private val _googleWebClientId = MutableStateFlow<String?>("820443327477-ttt31uen6kb6ckt5e707bst7v8qk2pud.apps.googleusercontent.com")
     val googleWebClientId = _googleWebClientId.asStateFlow()
     
     var dramasConfigUrl = "https://raw.githubusercontent.com/tranbi200000/moviebox-configs/main/dramas.json"
