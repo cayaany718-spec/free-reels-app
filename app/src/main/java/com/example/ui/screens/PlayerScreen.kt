@@ -54,6 +54,12 @@ import com.example.viewmodel.DramaViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.geometry.Size
+import android.media.AudioManager
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
@@ -94,7 +100,77 @@ fun PlayerScreen(
     var currentPositionMs by remember { mutableStateOf(0L) }
     var showPlayerControls by remember { mutableStateOf(true) }
 
+    // Professional player features:
+    var playbackSpeed by remember { mutableStateOf(1.0f) }
+    var isAutoPlayEnabled by remember { mutableStateOf(true) }
+    
+    // Swipe gestures state
+    var showGestureIndicator by remember { mutableStateOf(false) }
+    var gestureIndicatorType by remember { mutableStateOf("") } // "volume" or "brightness"
+    var gestureIndicatorValue by remember { mutableStateOf(0) }
+    var containerWidth by remember { mutableStateOf(0f) }
+    
+    val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
+    val maxVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
+
     var showVipPurchaseDialog by remember { mutableStateOf(false) }
+
+    var mediaPlayerRef by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+
+    // Auto-Resume playback states & logic
+    var savedPositionMs by remember { mutableStateOf(0L) }
+    var showResumePrompt by remember { mutableStateOf(false) }
+
+    LaunchedEffect(episode.id) {
+        // Fetch saved watch history for this drama/episode
+        try {
+            val history = viewModel.getWatchHistoryForDrama(drama.id)
+            if (history != null && history.episodeNumber == episode.episodeNumber && history.videoPositionMs > 3000L) {
+                savedPositionMs = history.videoPositionMs
+                showResumePrompt = true
+                delay(7000)
+                showResumePrompt = false
+            } else {
+                savedPositionMs = 0L
+                showResumePrompt = false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    DisposableEffect(episode.id) {
+        onDispose {
+            if (currentPositionMs > 1000L) {
+                viewModel.updateWatchProgress(drama.id, episode.episodeNumber, episode.title, currentPositionMs)
+            }
+        }
+    }
+
+    LaunchedEffect(currentPositionMs) {
+        mediaPlayerRef?.let { mp ->
+            try {
+                val diff = Math.abs(mp.currentPosition.toLong() - currentPositionMs)
+                if (diff > 4000) { // Seek if significant gap (slider or resume clicked)
+                    mp.seekTo(currentPositionMs.toInt())
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    LaunchedEffect(playbackSpeed, mediaPlayerRef) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            mediaPlayerRef?.let { mp ->
+                try {
+                    mp.playbackParams = mp.playbackParams.setSpeed(playbackSpeed)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
 
     // UI overlays
     var showCommentsSheet by remember { mutableStateOf(false) }
@@ -118,27 +194,31 @@ fun PlayerScreen(
     }
 
     // Coroutine to simulate video timeline progression
-    LaunchedEffect(isPlaying, episode.id, isUnlocked) {
+    LaunchedEffect(isPlaying, episode.id, isUnlocked, playbackSpeed, mediaPlayerRef) {
         if (isPlaying && isUnlocked) {
             while (true) {
-                delay(1000)
-                if (currentPositionMs < videoDurationMs) {
+                val stepMs = (1000 / playbackSpeed).toLong().coerceAtLeast(100L)
+                delay(stepMs)
+                
+                val actualPos = mediaPlayerRef?.let {
+                    try {
+                        if (it.isPlaying) it.currentPosition.toLong() else null
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+
+                if (actualPos != null) {
+                    currentPositionMs = actualPos
+                    currentProgress = (currentPositionMs.toFloat() / videoDurationMs.toFloat()).coerceIn(0f, 1f)
+                } else if (currentPositionMs < videoDurationMs) {
                     currentPositionMs += 1000
                     currentProgress = (currentPositionMs.toFloat() / videoDurationMs.toFloat()).coerceIn(0f, 1f)
-                } else {
-                    // Video finished, auto play next
-                    val nextEpNo = episode.episodeNumber + 1
-                    val nextEp = episodes.find { it.episodeNumber == nextEpNo }
-                    if (nextEp != null) {
-                        viewModel.selectEpisode(drama, nextEp)
-                        currentPositionMs = 0L
-                        currentProgress = 0f
-                        Toast.makeText(context, viewModel.getString("toast_switching_next"), Toast.LENGTH_SHORT).show()
-                    } else {
-                        isPlaying = false
-                        currentPositionMs = 0L
-                        currentProgress = 0f
-                    }
+                }
+
+                // Periodically save watch progress (e.g. every 5 seconds)
+                if (currentPositionMs > 1000L) {
+                    viewModel.updateWatchProgress(drama.id, episode.episodeNumber, episode.title, currentPositionMs)
                 }
             }
         }
@@ -228,9 +308,79 @@ fun PlayerScreen(
     ) {
         // 1. Real Video Player Layout (If unlocked)
         if (isUnlocked && !isAdRunning) {
+            var gestureBrightness by remember { mutableStateOf<Float?>(null) }
+            var gestureVolume by remember { mutableStateOf<Float?>(null) }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .onSizeChanged { containerWidth = it.width.toFloat() }
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                val isLeftHalf = offset.x < containerWidth / 2
+                                val isGestureArea = offset.x < containerWidth * 0.25f || offset.x > containerWidth * 0.75f
+                                
+                                if (isGestureArea) {
+                                    showGestureIndicator = true
+                                    gestureIndicatorType = if (isLeftHalf) "brightness" else "volume"
+                                    
+                                    if (isLeftHalf) {
+                                        val activity = context as? android.app.Activity
+                                        val currentBrightness = activity?.window?.attributes?.screenBrightness ?: 0.5f
+                                        gestureBrightness = if (currentBrightness < 0f) 0.5f else currentBrightness
+                                        gestureIndicatorValue = ((gestureBrightness ?: 0.5f) * 100).toInt()
+                                    } else {
+                                        val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                                        gestureVolume = currentVol.toFloat() / maxVolume.toFloat()
+                                        gestureIndicatorValue = ((gestureVolume ?: 0.5f) * 100).toInt()
+                                    }
+                                } else {
+                                    showGestureIndicator = false
+                                }
+                            },
+                            onDrag = { change, dragAmount ->
+                                if (showGestureIndicator) {
+                                    change.consume()
+                                    val delta = -dragAmount.y * 0.003f
+                                    
+                                    if (gestureIndicatorType == "brightness") {
+                                        gestureBrightness = ((gestureBrightness ?: 0.5f) + delta).coerceIn(0.01f, 1f)
+                                        val newBright = gestureBrightness ?: 0.5f
+                                        gestureIndicatorValue = (newBright * 100).toInt()
+                                        
+                                        val activity = context as? android.app.Activity
+                                        activity?.runOnUiThread {
+                                            activity.window?.attributes?.let { layoutParams ->
+                                                layoutParams.screenBrightness = newBright
+                                                activity.window.attributes = layoutParams
+                                            }
+                                        }
+                                    } else {
+                                        gestureVolume = ((gestureVolume ?: 0.5f) + delta).coerceIn(0f, 1f)
+                                        val newVolRatio = gestureVolume ?: 0.5f
+                                        val newVol = (newVolRatio * maxVolume).toInt()
+                                        gestureIndicatorValue = (newVolRatio * 100).toInt()
+                                        
+                                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                    }
+                                }
+                            },
+                            onDragEnd = {
+                                gestureBrightness = null
+                                gestureVolume = null
+                                scope.launch {
+                                    delay(800)
+                                    showGestureIndicator = false
+                                }
+                            },
+                            onDragCancel = {
+                                gestureBrightness = null
+                                gestureVolume = null
+                                showGestureIndicator = false
+                            }
+                        )
+                    }
                     .clickable { showPlayerControls = !showPlayerControls }
             ) {
                 // VideoView Wrapper
@@ -238,6 +388,7 @@ fun PlayerScreen(
                     factory = { ctx ->
                         VideoView(ctx).apply {
                             setOnPreparedListener { mp ->
+                                mediaPlayerRef = mp
                                 videoDurationMs = mp.duration.toLong().coerceAtLeast(1)
                                 mp.isLooping = false
                                 if (isMuted) {
@@ -245,10 +396,23 @@ fun PlayerScreen(
                                 } else {
                                     mp.setVolume(1f, 1f)
                                 }
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                    try {
+                                        mp.playbackParams = mp.playbackParams.setSpeed(playbackSpeed)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
                                 mp.start()
                             }
                             setOnCompletionListener {
-                                playNextEpisode()
+                                if (isAutoPlayEnabled) {
+                                    playNextEpisode()
+                                } else {
+                                    isPlaying = false
+                                    currentPositionMs = 0L
+                                    currentProgress = 0f
+                                }
                             }
                         }
                     },
@@ -681,7 +845,79 @@ fun PlayerScreen(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Playback Speed & Auto-Play Toggle Row (Antigravity Pro premium styling)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Speed Options
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Tốc độ:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        listOf(0.75f, 1.0f, 1.5f, 2.0f).forEach { speed ->
+                            val isSelected = playbackSpeed == speed
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        else Color.Black.copy(alpha = 0.4f)
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { playbackSpeed = speed }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "${speed}x",
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    // AutoPlay Toggle
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black.copy(alpha = 0.4f))
+                            .clickable { isAutoPlayEnabled = !isAutoPlayEnabled }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isAutoPlayEnabled) Icons.Default.Autorenew else Icons.Default.Block,
+                            contentDescription = null,
+                            tint = if (isAutoPlayEnabled) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = if (isAutoPlayEnabled) "Tự phát tiếp: BẬT" else "Tự phát tiếp: TẮT",
+                            color = if (isAutoPlayEnabled) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Seekbar & Timing Row
                 Row(
@@ -754,6 +990,108 @@ fun PlayerScreen(
                 },
                 onClose = { showEpisodesSheet = false }
             )
+        }
+
+        // 11. Custom Gesture HUD Indicator (Antigravity Pro design)
+        if (showGestureIndicator) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (gestureIndicatorType == "brightness") Icons.Default.Brightness5 else Icons.Default.VolumeUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Text(
+                        text = if (gestureIndicatorType == "brightness") "Độ sáng: $gestureIndicatorValue%" else "Âm lượng: $gestureIndicatorValue%",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    // Custom micro progress bar
+                    LinearProgressIndicator(
+                        progress = { gestureIndicatorValue / 100f },
+                        modifier = Modifier
+                            .width(80.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = Color.White.copy(alpha = 0.2f)
+                    )
+                }
+            }
+        }
+
+        // 12. Elegant Auto-Resume Playback Prompt (Netflix-style Glassmorphic HUD)
+        if (showResumePrompt && savedPositionMs > 3000L) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 80.dp)
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .clickable {
+                        currentPositionMs = savedPositionMs
+                        currentProgress = (savedPositionMs.toFloat() / videoDurationMs.toFloat()).coerceIn(0f, 1f)
+                        mediaPlayerRef?.seekTo(savedPositionMs.toInt())
+                        showResumePrompt = false
+                        Toast.makeText(context, "Đã tiếp tục phát từ ${formatDuration(savedPositionMs)}", Toast.LENGTH_SHORT).show()
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Text(
+                            text = "Tiếp tục xem tập này?",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Phát từ ${formatDuration(savedPositionMs)} (Bấm để xem tiếp)",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 10.sp
+                        )
+                    }
+                    IconButton(
+                        onClick = { showResumePrompt = false },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

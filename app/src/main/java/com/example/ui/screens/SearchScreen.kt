@@ -4,8 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -17,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,6 +37,7 @@ fun SearchScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val dramas by viewModel.filteredDramas.collectAsState()
     val appLanguage by viewModel.appLanguage.collectAsState()
+    val recentSearches by viewModel.recentSearches.collectAsState()
 
     Column(
         modifier = modifier
@@ -69,6 +74,16 @@ fun SearchScreen(
                 }
             },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                imeAction = ImeAction.Search
+            ),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    if (searchQuery.isNotEmpty()) {
+                        viewModel.addSearchQuery(searchQuery)
+                    }
+                }
+            ),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
@@ -81,6 +96,60 @@ fun SearchScreen(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Recent Searches Block (Antigravity Pro styling)
+        if (searchQuery.isEmpty() && recentSearches.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Tìm kiếm gần đây",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = "Xóa tất cả",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { viewModel.clearSearchHistory() }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(recentSearches) { search ->
+                        SuggestionChip(
+                            onClick = {
+                                viewModel.setSearchQuery(search)
+                                viewModel.addSearchQuery(search)
+                            },
+                            label = { Text(search, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                labelColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            border = null,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
 
         // 2. Results Header Title
         Text(
@@ -139,7 +208,12 @@ fun SearchScreen(
                                     DramaGridCard(
                                         drama = drama,
                                         viewModel = viewModel,
-                                        onClick = { onNavigateToDetail(drama.id) }
+                                        onClick = { 
+                                            if (searchQuery.isNotEmpty()) {
+                                                viewModel.addSearchQuery(searchQuery)
+                                            }
+                                            onNavigateToDetail(drama.id) 
+                                        }
                                     )
                                 }
                             }

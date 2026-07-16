@@ -83,14 +83,19 @@ class DramaRepository(context: Context) {
         }
     }
 
-    suspend fun saveWatchHistory(dramaId: Int, episodeNumber: Int, episodeTitle: String) {
+    suspend fun saveWatchHistory(dramaId: Int, episodeNumber: Int, episodeTitle: String, positionMs: Long = 0L) {
         val history = WatchHistoryEntity(
             dramaId = dramaId,
             episodeNumber = episodeNumber,
             episodeTitle = episodeTitle,
-            lastWatchedTime = System.currentTimeMillis()
+            lastWatchedTime = System.currentTimeMillis(),
+            videoPositionMs = positionMs
         )
         watchHistoryDao.insertHistory(history)
+    }
+
+    suspend fun getWatchHistoryForDrama(dramaId: Int): WatchHistoryEntity? {
+        return watchHistoryDao.getHistoryForDrama(dramaId)
     }
 
     suspend fun deleteHistory(dramaId: Int) {

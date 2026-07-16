@@ -317,7 +317,16 @@ fun HistoryTabContent(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable { onNavigateToDetail(item.drama.id) }
+                    .clickable { 
+                        val targetEp = viewModel.getEpisodesForDrama(item.drama.id)
+                            .find { it.episodeNumber == item.episodeNumber }
+                        if (targetEp != null) {
+                            viewModel.selectEpisode(item.drama, targetEp)
+                        } else {
+                            viewModel.selectDrama(item.drama)
+                        }
+                        onNavigateToDetail(item.drama.id)
+                    }
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

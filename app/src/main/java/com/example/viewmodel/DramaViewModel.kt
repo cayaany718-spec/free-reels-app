@@ -86,6 +86,36 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
+    private val _recentSearches = MutableStateFlow<List<String>>(emptyList())
+    val recentSearches = _recentSearches.asStateFlow()
+
+    private fun loadRecentSearches() {
+        val prefs = getApplication<Application>().getSharedPreferences("search_history", android.content.Context.MODE_PRIVATE)
+        val historyString = prefs.getString("history", "") ?: ""
+        if (historyString.isNotEmpty()) {
+            _recentSearches.value = historyString.split(",").filter { it.isNotEmpty() }
+        }
+    }
+
+    fun addSearchQuery(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return
+        val currentList = _recentSearches.value.toMutableList()
+        currentList.remove(trimmed)
+        currentList.add(0, trimmed)
+        val updated = currentList.take(5) // Keep last 5 recent searches
+        _recentSearches.value = updated
+        
+        val prefs = getApplication<Application>().getSharedPreferences("search_history", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("history", updated.joinToString(",")).apply()
+    }
+
+    fun clearSearchHistory() {
+        _recentSearches.value = emptyList()
+        val prefs = getApplication<Application>().getSharedPreferences("search_history", android.content.Context.MODE_PRIVATE)
+        prefs.edit().remove("history").apply()
+    }
+
     private val _selectedCategory = MutableStateFlow("Phổ biến")
     val selectedCategory = _selectedCategory.asStateFlow()
 
@@ -230,6 +260,9 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     val commentsMap = _commentsMap.asStateFlow()
 
     init {
+        // 0. Load saved search history
+        loadRecentSearches()
+
         // 1. Load dynamic dramas and episodes cache (synchronous first, to populate _allDramas before UI initializes)
         val cachePrefs = getApplication<Application>().getSharedPreferences("dynamic_movie_cache", android.content.Context.MODE_PRIVATE)
         val cachedJson = cachePrefs.getString("cached_dramas_json", null)
@@ -540,6 +573,16 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.saveWatchHistory(drama.id, episode.episodeNumber, episode.title)
         }
+    }
+
+    fun updateWatchProgress(dramaId: Int, episodeNumber: Int, episodeTitle: String, positionMs: Long) {
+        viewModelScope.launch {
+            repository.saveWatchHistory(dramaId, episodeNumber, episodeTitle, positionMs)
+        }
+    }
+
+    suspend fun getWatchHistoryForDrama(dramaId: Int): WatchHistoryEntity? {
+        return repository.getWatchHistoryForDrama(dramaId)
     }
 
     fun setCategory(category: String) {

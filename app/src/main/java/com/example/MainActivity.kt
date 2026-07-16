@@ -13,8 +13,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -47,6 +46,15 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     setContent {
       MyApplicationTheme {
+        var bypassSecurity by remember { mutableStateOf(false) }
+
+        if (!bypassSecurity) {
+          com.example.ui.SecurityOverlay(
+            isDeveloperMode = com.example.shortdrama.BuildConfig.DEBUG,
+            onBypass = { bypassSecurity = true }
+          )
+        }
+
         val navController = rememberNavController()
         val viewModel: DramaViewModel = viewModel()
         val navBackStackEntry by navController.currentBackStackEntryAsState()

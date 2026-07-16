@@ -76,7 +76,7 @@ fun HomeScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F11)) // Immersive black background exactly like screenshot
+            .background(MaterialTheme.colorScheme.background) // Immersive Antigravity Pro cosmic background
     ) {
         // 1. Search Bar at the Top (Vietnamese standard layout)
         item {
