@@ -176,60 +176,108 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
         saveUserSession(newProfile)
     }
 
-    fun registerWithEmail(email: String, password: String, nickname: String): Boolean {
-        val prefs = getApplication<Application>().getSharedPreferences("registered_users_db", android.content.Context.MODE_PRIVATE)
-        val usersJson = prefs.getString("users_list_json", "[]") ?: "[]"
-        try {
-            val arr = JSONArray(usersJson)
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                if (obj.getString("email").equals(email, ignoreCase = true)) {
-                    return false // already exists
+    fun registerWithEmailAndFirebase(email: String, password: String, nickname: String, onComplete: (Boolean, String?) -> Unit) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        auth.createUserWithEmailAndPassword(email.trim(), password)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val user = auth.currentUser
+                    if (user != null) {
+                        val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                            .setDisplayName(nickname.trim())
+                            .build()
+                        user.updateProfile(profileUpdates)
+                            .addOnCompleteListener { updateTask ->
+                                val finalNickname = nickname.trim()
+                                val newProfile = UserProfile(
+                                    id = user.uid,
+                                    nickname = finalNickname,
+                                    avatarEmoji = "🦊",
+                                    phoneNumber = email.trim(),
+                                    vipLevel = "THÀNH VIÊN THƯỜNG",
+                                    isVip = false
+                                )
+                                _currentUserProfile.value = newProfile
+                                _isLoggedIn.value = true
+                                saveUserSession(newProfile)
+                                sendGmailNotification(email.trim(), finalNickname)
+                                onComplete(true, null)
+                            }
+                    } else {
+                        onComplete(false, "Không thể lấy thông tin người dùng sau khi đăng ký.")
+                    }
+                } else {
+                    val exception = task.exception
+                    val errorMsg = exception?.localizedMessage ?: "Đăng ký thất bại."
+                    onComplete(false, errorMsg)
                 }
             }
-            val newUser = JSONObject().apply {
-                put("email", email.trim())
-                put("password", password)
-                put("nickname", nickname.trim())
-                put("avatar", "🦊")
-            }
-            arr.put(newUser)
-            prefs.edit().putString("users_list_json", arr.toString()).apply()
-            
-            // Log in as new user
-            login(email, nickname, "🦊")
-            sendGmailNotification(email, nickname)
-            return true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return false
-        }
     }
 
-    fun loginWithEmail(email: String, password: String): String? {
-        val prefs = getApplication<Application>().getSharedPreferences("registered_users_db", android.content.Context.MODE_PRIVATE)
-        val usersJson = prefs.getString("users_list_json", "[]") ?: "[]"
-        try {
-            val arr = JSONArray(usersJson)
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                if (obj.getString("email").equals(email, ignoreCase = true)) {
-                    if (obj.getString("password") == password) {
-                        val nickname = obj.getString("nickname")
-                        val avatar = obj.optString("avatar", "🦊")
-                        login(email, nickname, avatar)
-                        sendGmailNotification(email, nickname)
-                        return null // success
+    fun loginWithEmailAndFirebase(email: String, password: String, onComplete: (Boolean, String?) -> Unit) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        auth.signInWithEmailAndPassword(email.trim(), password)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val user = auth.currentUser
+                    if (user != null) {
+                        val finalNickname = user.displayName ?: email.substringBefore("@")
+                        val newProfile = UserProfile(
+                            id = user.uid,
+                            nickname = finalNickname,
+                            avatarEmoji = "🦊",
+                            phoneNumber = email.trim(),
+                            vipLevel = "THÀNH VIÊN THƯỜNG",
+                            isVip = false
+                        )
+                        _currentUserProfile.value = newProfile
+                        _isLoggedIn.value = true
+                        saveUserSession(newProfile)
+                        sendGmailNotification(email.trim(), finalNickname)
+                        onComplete(true, null)
                     } else {
-                        return "Mật khẩu không chính xác"
+                        onComplete(false, "Không thể lấy thông tin người dùng sau khi đăng nhập.")
                     }
+                } else {
+                    val exception = task.exception
+                    val errorMsg = exception?.localizedMessage ?: "Đăng nhập thất bại."
+                    onComplete(false, errorMsg)
                 }
             }
-            return "Tài khoản không tồn tại"
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return "Lỗi cơ sở dữ liệu"
-        }
+    }
+
+    fun loginWithGoogleAndFirebase(idToken: String, onComplete: (Boolean, String?) -> Unit) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+        auth.signInWithCredential(credential)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val user = auth.currentUser
+                    if (user != null) {
+                        val email = user.email ?: ""
+                        val finalNickname = user.displayName ?: email.substringBefore("@")
+                        val newProfile = UserProfile(
+                            id = user.uid,
+                            nickname = finalNickname,
+                            avatarEmoji = "🦊",
+                            phoneNumber = email,
+                            vipLevel = "THÀNH VIÊN THƯỜNG",
+                            isVip = false
+                        )
+                        _currentUserProfile.value = newProfile
+                        _isLoggedIn.value = true
+                        saveUserSession(newProfile)
+                        sendGmailNotification(email, finalNickname)
+                        onComplete(true, null)
+                    } else {
+                        onComplete(false, "Không thể lấy thông tin người dùng từ Google.")
+                    }
+                } else {
+                    val exception = task.exception
+                    val errorMsg = exception?.localizedMessage ?: "Đăng nhập Google thất bại."
+                    onComplete(false, errorMsg)
+                }
+            }
     }
 
     fun purchaseVip(packageName: String, durationDays: Int) {
@@ -248,6 +296,11 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() {
+        try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         _currentUserProfile.value = null
         _isLoggedIn.value = false
         saveUserSession(null)
@@ -331,26 +384,47 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // 2. Load saved user session
-        val prefs = getApplication<Application>().getSharedPreferences("user_session", android.content.Context.MODE_PRIVATE)
-        val savedIsLoggedIn = prefs.getBoolean("is_logged_in", false)
-        if (savedIsLoggedIn) {
-            val id = prefs.getString("user_id", "MB_948102") ?: "MB_948102"
-            val nickname = prefs.getString("user_nickname", "Thành viên MovieBox 🦊") ?: "Thành viên MovieBox 🦊"
-            val avatarEmoji = prefs.getString("user_avatar", "🦊") ?: "🦊"
-            val phoneNumber = prefs.getString("user_phone", "") ?: ""
-            val vipLevel = prefs.getString("user_vip_level", "THÀNH VIÊN THƯỜNG") ?: "THÀNH VIÊN THƯỜNG"
+        // 2. Load saved user session / sync with Firebase Auth
+        val firebaseUser = try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser } catch (e: Exception) { null }
+        if (firebaseUser != null) {
+            val email = firebaseUser.email ?: ""
+            val nickname = firebaseUser.displayName ?: email.substringBefore("@")
+            val prefs = getApplication<Application>().getSharedPreferences("user_session", android.content.Context.MODE_PRIVATE)
             val isVip = prefs.getBoolean("user_is_vip", false)
+            val vipLevel = prefs.getString("user_vip_level", "THÀNH VIÊN THƯỜNG") ?: "THÀNH VIÊN THƯỜNG"
+            val avatarEmoji = prefs.getString("user_avatar", "🦊") ?: "🦊"
             
             _currentUserProfile.value = UserProfile(
-                id = id,
+                id = firebaseUser.uid,
                 nickname = nickname,
                 avatarEmoji = avatarEmoji,
-                phoneNumber = phoneNumber,
+                phoneNumber = email,
                 vipLevel = vipLevel,
                 isVip = isVip
             )
             _isLoggedIn.value = true
+        } else {
+            // Check if there was a local session (maybe offline, or non-Firebase login)
+            val prefs = getApplication<Application>().getSharedPreferences("user_session", android.content.Context.MODE_PRIVATE)
+            val savedIsLoggedIn = prefs.getBoolean("is_logged_in", false)
+            if (savedIsLoggedIn) {
+                val id = prefs.getString("user_id", "MB_948102") ?: "MB_948102"
+                val nickname = prefs.getString("user_nickname", "Thành viên MovieBox 🦊") ?: "Thành viên MovieBox 🦊"
+                val avatarEmoji = prefs.getString("user_avatar", "🦊") ?: "🦊"
+                val phoneNumber = prefs.getString("user_phone", "") ?: ""
+                val vipLevel = prefs.getString("user_vip_level", "THÀNH VIÊN THƯỜNG") ?: "THÀNH VIÊN THƯỜNG"
+                val isVip = prefs.getBoolean("user_is_vip", false)
+                
+                _currentUserProfile.value = UserProfile(
+                    id = id,
+                    nickname = nickname,
+                    avatarEmoji = avatarEmoji,
+                    phoneNumber = phoneNumber,
+                    vipLevel = vipLevel,
+                    isVip = isVip
+                )
+                _isLoggedIn.value = true
+            }
         }
 
         viewModelScope.launch {

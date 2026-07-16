@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -71,6 +72,9 @@ fun ProfileScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("dev_mode_prefs", android.content.Context.MODE_PRIVATE) }
+    var isDeveloperModeEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("dev_mode_enabled", false)) }
+    var versionTapCount by remember { mutableStateOf(0) }
     val balance by viewModel.userBalance.collectAsStateWithLifecycle(initialValue = null)
     val favoritesList by viewModel.favorites.collectAsStateWithLifecycle(initialValue = emptyList())
     
@@ -237,10 +241,14 @@ fun ProfileScreen(
                                     val credential = result.credential
                                     if (credential is com.google.android.libraries.identity.googleid.GoogleIdTokenCredential) {
                                         val email = credential.id
-                                        val name = credential.displayName ?: email.substringBefore("@")
-                                        viewModel.login(email, name, "🦊")
-                                        viewModel.sendGmailNotification(email, name)
-                                        Toast.makeText(context, "Đăng nhập Google thành công! Cảnh báo bảo mật đăng nhập đã được gửi tới Gmail ($email). 🎉", Toast.LENGTH_LONG).show()
+                                        val idToken = credential.idToken
+                                        viewModel.loginWithGoogleAndFirebase(idToken) { success, errorMsg ->
+                                            if (success) {
+                                                Toast.makeText(context, "Đăng nhập Google thành công! Cảnh báo bảo mật đăng nhập đã được gửi tới Gmail ($email). 🎉", Toast.LENGTH_LONG).show()
+                                            } else {
+                                                Toast.makeText(context, "Lỗi kết nối Firebase Auth: $errorMsg", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
                                     } else {
                                         Toast.makeText(context, "Không nhận diện được tài khoản Google", Toast.LENGTH_SHORT).show()
                                     }
@@ -411,18 +419,20 @@ fun ProfileScreen(
                                     authErrorMessage = "Vui lòng nhập tên hiển thị."
                                     return@Button
                                 }
-                                val registerSuccess = viewModel.registerWithEmail(email, password, nickname)
-                                if (registerSuccess) {
-                                    Toast.makeText(context, "Đăng ký tài khoản và đăng nhập thành công! 🎉", Toast.LENGTH_LONG).show()
-                                } else {
-                                    authErrorMessage = "Địa chỉ Email này đã được đăng ký trước đó."
+                                viewModel.registerWithEmailAndFirebase(email, password, nickname) { success, errorMsg ->
+                                    if (success) {
+                                        Toast.makeText(context, "Đăng ký tài khoản và đăng nhập thành công! 🎉", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        authErrorMessage = errorMsg ?: "Đăng ký thất bại."
+                                    }
                                 }
                             } else {
-                                val loginError = viewModel.loginWithEmail(email, password)
-                                if (loginError == null) {
-                                    Toast.makeText(context, "Đăng nhập thành công! Chào mừng bạn trở lại. 🎉", Toast.LENGTH_LONG).show()
-                                } else {
-                                    authErrorMessage = loginError
+                                viewModel.loginWithEmailAndFirebase(email, password) { success, errorMsg ->
+                                    if (success) {
+                                        Toast.makeText(context, "Đăng nhập thành công! Chào mừng bạn trở lại. 🎉", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        authErrorMessage = errorMsg ?: "Đăng nhập thất bại."
+                                    }
                                 }
                             }
                         },
@@ -1117,122 +1127,124 @@ fun ProfileScreen(
             }
 
             // 5b. REAL Live Device Security Dashboard Scanner card
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                var isRooted by remember { mutableStateOf(false) }
-                var isHooked by remember { mutableStateOf(false) }
-                var isDebugged by remember { mutableStateOf(false) }
-                var apkSignature by remember { mutableStateOf("") }
-                
-                LaunchedEffect(Unit) {
-                    isRooted = com.example.security.AntiCheck.isDeviceRooted()
-                    isHooked = com.example.security.AntiCheck.isHookFrameworkDetected()
-                    isDebugged = com.example.security.AntiCheck.isDebugged(context)
-                    apkSignature = com.example.security.AntiCheck.getSigningCertificateSha256(context)
-                }
+            if (isDeveloperModeEnabled) {
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    var isRooted by remember { mutableStateOf(false) }
+                    var isHooked by remember { mutableStateOf(false) }
+                    var isDebugged by remember { mutableStateOf(false) }
+                    var apkSignature by remember { mutableStateOf("") }
+                    
+                    LaunchedEffect(Unit) {
+                        isRooted = com.example.security.AntiCheck.isDeviceRooted()
+                        isHooked = com.example.security.AntiCheck.isHookFrameworkDetected()
+                        isDebugged = com.example.security.AntiCheck.isDebugged(context)
+                        apkSignature = com.example.security.AntiCheck.getSigningCertificateSha256(context)
+                    }
 
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Security,
-                                contentDescription = "Trung tâm Bảo mật",
-                                tint = PrimaryCoral,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "Trung tâm Bảo mật Thiết bị (Live Scanner) 🛡️",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-
-                        HorizontalDivider(color = BorderColor)
-
-                        // 1. Root Check Row
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column {
-                                Text(text = "Kiểm tra quyền ROOT / Bẻ khóa", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                                Text(text = "Ngăn chặn sửa đổi file hệ thống trái phép", fontSize = 10.sp, color = GrayText)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Security,
+                                    contentDescription = "Trung tâm Bảo mật",
+                                    tint = PrimaryCoral,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Trung tâm Bảo mật Thiết bị (Live Scanner) 🛡️",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
                             }
-                            Text(
-                                text = if (isRooted) "Phát hiện ROOT ⚠️" else "Thiết bị an toàn ✅",
-                                fontSize = 12.sp,
-                                color = if (isRooted) PrimaryCoral else Color.Green,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
 
-                        // 2. Hook detection Row
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column {
-                                Text(text = "Phát hiện Hook tool (Frida/Xposed)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                                Text(text = "Ngăn chặn can thiệp bộ nhớ ứng dụng", fontSize = 10.sp, color = GrayText)
-                            }
-                            Text(
-                                text = if (isHooked) "Phát hiện Can Thiệp ⚠️" else "Không can thiệp ✅",
-                                fontSize = 12.sp,
-                                color = if (isHooked) PrimaryCoral else Color.Green,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                            HorizontalDivider(color = BorderColor)
 
-                        // 3. Debugger row
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column {
-                                Text(text = "Phát hiện Gỡ lỗi (Debugger)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                                Text(text = "Ngăn chặn phân tích mã ngược", fontSize = 10.sp, color = GrayText)
+                            // 1. Root Check Row
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column {
+                                    Text(text = "Kiểm tra quyền ROOT / Bẻ khóa", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                    Text(text = "Ngăn chặn sửa đổi file hệ thống trái phép", fontSize = 10.sp, color = GrayText)
+                                }
+                                Text(
+                                    text = if (isRooted) "Phát hiện ROOT ⚠️" else "Thiết bị an toàn ✅",
+                                    fontSize = 12.sp,
+                                    color = if (isRooted) PrimaryCoral else Color.Green,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
-                            Text(
-                                text = if (isDebugged) "Đang Debugger ⚙️" else "Bình thường ✅",
-                                fontSize = 12.sp,
-                                color = if (isDebugged) PrimaryGold else Color.Green,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
 
-                        // 4. SHA256 Signature verification
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column {
-                                Text(text = "Chữ ký số APK (SHA-256)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                                Text(text = "SHA-256: " + if (apkSignature.length > 20) apkSignature.take(20) + "..." else "Chưa xác thực", fontSize = 10.sp, color = GrayText)
+                            // 2. Hook detection Row
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column {
+                                    Text(text = "Phát hiện Hook tool (Frida/Xposed)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                    Text(text = "Ngăn chặn can thiệp bộ nhớ ứng dụng", fontSize = 10.sp, color = GrayText)
+                                }
+                                Text(
+                                    text = if (isHooked) "Phát hiện Can Thiệp ⚠️" else "Không can thiệp ✅",
+                                    fontSize = 12.sp,
+                                    color = if (isHooked) PrimaryCoral else Color.Green,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
-                            Text(
-                                text = "Bảo mật tốt 🔒",
-                                fontSize = 12.sp,
-                                color = Color.Green,
-                                fontWeight = FontWeight.Bold
-                            )
+
+                            // 3. Debugger row
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column {
+                                    Text(text = "Phát hiện Gỡ lỗi (Debugger)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                    Text(text = "Ngăn chặn phân tích mã ngược", fontSize = 10.sp, color = GrayText)
+                                }
+                                Text(
+                                    text = if (isDebugged) "Đang Debugger ⚙️" else "Bình thường ✅",
+                                    fontSize = 12.sp,
+                                    color = if (isDebugged) PrimaryGold else Color.Green,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // 4. SHA256 Signature verification
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column {
+                                    Text(text = "Chữ ký số APK (SHA-256)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                    Text(text = "SHA-256: " + if (apkSignature.length > 20) apkSignature.take(20) + "..." else "Chưa xác thực", fontSize = 10.sp, color = GrayText)
+                                }
+                                Text(
+                                    text = "Bảo mật tốt 🔒",
+                                    fontSize = 12.sp,
+                                    color = Color.Green,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -1244,7 +1256,29 @@ fun ProfileScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 40.dp),
+                        .padding(bottom = 40.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            versionTapCount++
+                            if (versionTapCount >= 7) {
+                                if (isDeveloperModeEnabled) {
+                                    sharedPrefs.edit().putBoolean("dev_mode_enabled", false).apply()
+                                    isDeveloperModeEnabled = false
+                                    versionTapCount = 0
+                                    Toast.makeText(context, "Đã ẩn Trung tâm Bảo mật Thiết bị! 🔒", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    sharedPrefs.edit().putBoolean("dev_mode_enabled", true).apply()
+                                    isDeveloperModeEnabled = true
+                                    versionTapCount = 0
+                                    Toast.makeText(context, "Đã kích hoạt Trung tâm Bảo mật Thiết bị! 🛡️", Toast.LENGTH_SHORT).show()
+                                }
+                            } else if (versionTapCount > 2) {
+                                val remaining = 7 - versionTapCount
+                                Toast.makeText(context, "Bạn còn $remaining bước nữa để mở khóa tính năng bảo mật nâng cao.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
