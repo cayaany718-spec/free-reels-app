@@ -106,6 +106,51 @@ fun ProfileScreen(
     var nicknameInput by remember { mutableStateOf("") }
     var authErrorMessage by remember { mutableStateOf("") }
 
+    // Real Google Sign-In Play Services SDK setup for high compatibility
+    val googleSignInClient = remember(googleWebClientId) {
+        val targetClientId = if (!googleWebClientId.isNullOrBlank()) googleWebClientId!! else "820443327477-ttt31uen6kb6ckt5e707bst7v8qk2pud.apps.googleusercontent.com"
+        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
+            com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
+        )
+            .requestIdToken(targetClientId)
+            .requestEmail()
+            .build()
+        com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
+    }
+
+    val googleSignInLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        isSocialLoading = false
+        val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+            val idToken = account?.idToken
+            if (!idToken.isNullOrBlank()) {
+                coroutineScope.launch {
+                    viewModel.loginWithGoogleAndFirebase(idToken) { success, errorMsg ->
+                        if (success) {
+                            Toast.makeText(context, "Đăng nhập Google thành công! 🎉", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(context, "Lỗi kết nối Firebase Auth: $errorMsg", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            } else {
+                Toast.makeText(context, "Không nhận được ID Token từ tài khoản Google.", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            val apiException = e as? com.google.android.gms.common.api.ApiException
+            val statusCode = apiException?.statusCode
+            if (statusCode == 12501 || statusCode == 16) { // Sign-In Cancelled or closed
+                Toast.makeText(context, "Đã hủy đăng nhập Google", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Đăng nhập Google thất bại (Lỗi $statusCode): ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
 
     // Edit profile state
     var isEditingName by remember { mutableStateOf(false) }
@@ -260,11 +305,16 @@ fun ProfileScreen(
                                     if (isCancelled) {
                                         Toast.makeText(context, "Đã hủy đăng nhập Google", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        Toast.makeText(
-                                            context, 
-                                            "Không thể kết nối dịch vụ Google Sign-In: ${e.localizedMessage}\n\nHãy đăng ký/đăng nhập bằng Email ngay dưới đây!", 
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                        // Auto-fallback to the authentic standard Google Sign-In SDK to trigger the real Google Account Chooser UI
+                                        Toast.makeText(context, "Đang mở cửa sổ tài khoản Google chính thức... 🚀", Toast.LENGTH_SHORT).show()
+                                        try {
+                                            isSocialLoading = true
+                                            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                                        } catch (sdkException: Exception) {
+                                            sdkException.printStackTrace()
+                                            isSocialLoading = false
+                                            Toast.makeText(context, "Thiết bị không hỗ trợ dịch vụ Google: ${sdkException.localizedMessage}", Toast.LENGTH_LONG).show()
+                                        }
                                     }
                                 }
                             }
