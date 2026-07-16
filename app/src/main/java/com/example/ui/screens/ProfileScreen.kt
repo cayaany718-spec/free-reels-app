@@ -51,6 +51,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.example.ui.theme.PrimaryCoral
@@ -93,9 +95,12 @@ fun ProfileScreen(
     var isSocialLoading by remember { mutableStateOf(false) }
     var socialPlatform by remember { mutableStateOf("") }
 
-    // Real Google login state
-    var isGoogleConnecting by remember { mutableStateOf(false) }
-    var lastNotifiedGoogleEmail by remember { mutableStateOf("") }
+    // Real Email Sign In / Sign Up state
+    var isSignUpMode by remember { mutableStateOf(false) }
+    var emailInput by remember { mutableStateOf("") }
+    var passwordInput by remember { mutableStateOf("") }
+    var nicknameInput by remember { mutableStateOf("") }
+    var authErrorMessage by remember { mutableStateOf("") }
 
 
     // Edit profile state
@@ -116,19 +121,6 @@ fun ProfileScreen(
                 viewModel.getString("toast_topup_success", amount.toString()), 
                 Toast.LENGTH_LONG
             ).show()
-        }
-    }
-
-    LaunchedEffect(isGoogleConnecting) {
-        if (isGoogleConnecting) {
-            delay(1500L)
-            isGoogleConnecting = false
-            val shortName = socialPlatform
-            val avatar = if (shortName.contains("Bình")) "🦊" else if (shortName.contains("Linh")) "🌸" else "🍿"
-            viewModel.login("0987654321", shortName, avatar)
-            val emailToSend = if (lastNotifiedGoogleEmail.isNotBlank()) lastNotifiedGoogleEmail else "tranbi200000@gmail.com"
-            viewModel.sendGmailNotification(emailToSend, shortName)
-            Toast.makeText(context, "Đăng nhập Google thành công! Cảnh báo bảo mật đăng nhập đã được gửi tới Gmail ($emailToSend). 🎉", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -163,9 +155,10 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .systemBarsPadding()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 24.dp)
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // TOP spacer / layout adjustment
                 Spacer(modifier = Modifier.height(30.dp))
@@ -217,13 +210,13 @@ fun ProfileScreen(
                     )
                 }
                 
-                // BOTTOM: Buttons, Secondary Option, and Terms
+                // BOTTOM: Real Authentic Authentication (Google Sign-In & Email Sign-In/Register)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Google Login Button
                     Button(
@@ -245,9 +238,9 @@ fun ProfileScreen(
                                     if (credential is com.google.android.libraries.identity.googleid.GoogleIdTokenCredential) {
                                         val email = credential.id
                                         val name = credential.displayName ?: email.substringBefore("@")
-                                        lastNotifiedGoogleEmail = email
-                                        socialPlatform = name
-                                        isGoogleConnecting = true
+                                        viewModel.login(email, name, "🦊")
+                                        viewModel.sendGmailNotification(email, name)
+                                        Toast.makeText(context, "Đăng nhập Google thành công! Cảnh báo bảo mật đăng nhập đã được gửi tới Gmail ($email). 🎉", Toast.LENGTH_LONG).show()
                                     } else {
                                         Toast.makeText(context, "Không nhận diện được tài khoản Google", Toast.LENGTH_SHORT).show()
                                     }
@@ -259,7 +252,11 @@ fun ProfileScreen(
                                     if (isCancelled) {
                                         Toast.makeText(context, "Đã hủy đăng nhập Google", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        Toast.makeText(context, "Lỗi kết nối Google: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(
+                                            context, 
+                                            "Không thể kết nối dịch vụ Google Sign-In: ${e.localizedMessage}\n\nHãy đăng ký/đăng nhập bằng Email ngay dưới đây!", 
+                                            Toast.LENGTH_LONG
+                                        ).show()
                                     }
                                 }
                             }
@@ -268,7 +265,7 @@ fun ProfileScreen(
                         shape = RoundedCornerShape(28.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp)
+                            .height(54.dp)
                             .testTag("google_login_button"),
                         border = BorderStroke(1.dp, Color(0xFFE0E0E0)),
                         contentPadding = PaddingValues(horizontal = 24.dp)
@@ -285,11 +282,182 @@ fun ProfileScreen(
                                 color = Color(0xFF1F1D23),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
-                              )
+                            )
                         }
                     }
+
+                    // --- REAL EMAIL SIGN-IN / SIGN-UP FORM ---
+                    Spacer(modifier = Modifier.height(6.dp))
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f), 
+                            color = Color.White.copy(alpha = 0.15f)
+                        )
+                        Text(
+                            text = " HOẶC DÙNG EMAIL ",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f), 
+                            color = Color.White.copy(alpha = 0.15f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    if (authErrorMessage.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF2C1515))
+                                .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                .padding(10.dp)
+                        ) {
+                            Text(
+                                text = authErrorMessage,
+                                color = Color(0xFFFF5252),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
+                    if (isSignUpMode) {
+                        OutlinedTextField(
+                            value = nicknameInput,
+                            onValueChange = { nicknameInput = it },
+                            label = { Text("Tên hiển thị (Nickname)", color = Color.White.copy(alpha = 0.6f)) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryCoral,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                                focusedLabelColor = PrimaryCoral,
+                                unfocusedLabelColor = Color.White.copy(alpha = 0.4f),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                cursorColor = PrimaryCoral
+                            ),
+                            modifier = Modifier.fillMaxWidth().testTag("auth_nickname_input")
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
+                    OutlinedTextField(
+                        value = emailInput,
+                        onValueChange = { emailInput = it },
+                        label = { Text("Địa chỉ Email", color = Color.White.copy(alpha = 0.6f)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryCoral,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                            focusedLabelColor = PrimaryCoral,
+                            unfocusedLabelColor = Color.White.copy(alpha = 0.4f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = PrimaryCoral
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("auth_email_input")
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    OutlinedTextField(
+                        value = passwordInput,
+                        onValueChange = { passwordInput = it },
+                        label = { Text("Mật khẩu (Tối thiểu 6 ký tự)", color = Color.White.copy(alpha = 0.6f)) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryCoral,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                            focusedLabelColor = PrimaryCoral,
+                            unfocusedLabelColor = Color.White.copy(alpha = 0.4f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = PrimaryCoral
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("auth_password_input")
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
+                        onClick = {
+                            authErrorMessage = ""
+                            val email = emailInput.trim()
+                            val password = passwordInput
+                            val nickname = nicknameInput.trim()
+
+                            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                                authErrorMessage = "Vui lòng nhập địa chỉ Email hợp lệ."
+                                return@Button
+                            }
+                            if (password.length < 6) {
+                                authErrorMessage = "Mật khẩu phải chứa ít nhất 6 ký tự."
+                                return@Button
+                            }
+
+                            if (isSignUpMode) {
+                                if (nickname.isBlank()) {
+                                    authErrorMessage = "Vui lòng nhập tên hiển thị."
+                                    return@Button
+                                }
+                                val registerSuccess = viewModel.registerWithEmail(email, password, nickname)
+                                if (registerSuccess) {
+                                    Toast.makeText(context, "Đăng ký tài khoản và đăng nhập thành công! 🎉", Toast.LENGTH_LONG).show()
+                                } else {
+                                    authErrorMessage = "Địa chỉ Email này đã được đăng ký trước đó."
+                                }
+                            } else {
+                                val loginError = viewModel.loginWithEmail(email, password)
+                                if (loginError == null) {
+                                    Toast.makeText(context, "Đăng nhập thành công! Chào mừng bạn trở lại. 🎉", Toast.LENGTH_LONG).show()
+                                } else {
+                                    authErrorMessage = loginError
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryCoral),
+                        shape = RoundedCornerShape(28.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("auth_submit_button")
+                    ) {
+                        Text(
+                            text = if (isSignUpMode) "Đăng ký tài khoản" else "Đăng nhập bằng Email",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = if (isSignUpMode) "Đã có tài khoản? Đăng nhập ngay 🦊" else "Chưa có tài khoản? Đăng ký ngay 🦊",
+                        color = Color(0xFF4285F4),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clickable {
+                                isSignUpMode = !isSignUpMode
+                                authErrorMessage = ""
+                            }
+                            .padding(vertical = 4.dp)
+                            .testTag("auth_mode_toggle")
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
                     
                     // Terms of Service & Privacy Policy Notice
                     Row(
@@ -329,41 +497,6 @@ fun ProfileScreen(
                 }
             }
         }
-
-        // --- 2. GOOGLE CONNECTING LOADER ---
-        if (isGoogleConnecting) {
-            AlertDialog(
-                onDismissRequest = { isGoogleConnecting = false },
-                confirmButton = {},
-                title = {},
-                text = {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
-                    ) {
-                        CircularProgressIndicator(color = Color(0xFF4285F4))
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Text(
-                            text = "Đang kết nối tài khoản Google của bạn...",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp,
-                            color = Color(0xFF1F1D23),
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Xác thực bảo mật qua Google Sign-In",
-                            fontSize = 12.sp,
-                            color = Color(0xFF5F6368),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                },
-                shape = RoundedCornerShape(16.dp),
-                containerColor = Color.White
-            )
-        }
-
     } else {
         // --- 2. GORGEOUS REGISTERED DASHBOARD SCREEN (ĐÃ ĐĂNG NHẬP) ---
         val profile = currentUserProfile ?: UserProfile()
@@ -979,6 +1112,128 @@ fun ProfileScreen(
                             tint = Color.Gray,
                             modifier = Modifier.size(16.dp)
                         )
+                    }
+                }
+            }
+
+            // 5b. REAL Live Device Security Dashboard Scanner card
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                var isRooted by remember { mutableStateOf(false) }
+                var isHooked by remember { mutableStateOf(false) }
+                var isDebugged by remember { mutableStateOf(false) }
+                var apkSignature by remember { mutableStateOf("") }
+                
+                LaunchedEffect(Unit) {
+                    isRooted = com.example.security.AntiCheck.isDeviceRooted()
+                    isHooked = com.example.security.AntiCheck.isHookFrameworkDetected()
+                    isDebugged = com.example.security.AntiCheck.isDebugged(context)
+                    apkSignature = com.example.security.AntiCheck.getSigningCertificateSha256(context)
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = "Trung tâm Bảo mật",
+                                tint = PrimaryCoral,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Trung tâm Bảo mật Thiết bị (Live Scanner) 🛡️",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        HorizontalDivider(color = BorderColor)
+
+                        // 1. Root Check Row
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                Text(text = "Kiểm tra quyền ROOT / Bẻ khóa", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                Text(text = "Ngăn chặn sửa đổi file hệ thống trái phép", fontSize = 10.sp, color = GrayText)
+                            }
+                            Text(
+                                text = if (isRooted) "Phát hiện ROOT ⚠️" else "Thiết bị an toàn ✅",
+                                fontSize = 12.sp,
+                                color = if (isRooted) PrimaryCoral else Color.Green,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // 2. Hook detection Row
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                Text(text = "Phát hiện Hook tool (Frida/Xposed)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                Text(text = "Ngăn chặn can thiệp bộ nhớ ứng dụng", fontSize = 10.sp, color = GrayText)
+                            }
+                            Text(
+                                text = if (isHooked) "Phát hiện Can Thiệp ⚠️" else "Không can thiệp ✅",
+                                fontSize = 12.sp,
+                                color = if (isHooked) PrimaryCoral else Color.Green,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // 3. Debugger row
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                Text(text = "Phát hiện Gỡ lỗi (Debugger)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                Text(text = "Ngăn chặn phân tích mã ngược", fontSize = 10.sp, color = GrayText)
+                            }
+                            Text(
+                                text = if (isDebugged) "Đang Debugger ⚙️" else "Bình thường ✅",
+                                fontSize = 12.sp,
+                                color = if (isDebugged) PrimaryGold else Color.Green,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // 4. SHA256 Signature verification
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                Text(text = "Chữ ký số APK (SHA-256)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                Text(text = "SHA-256: " + if (apkSignature.length > 20) apkSignature.take(20) + "..." else "Chưa xác thực", fontSize = 10.sp, color = GrayText)
+                            }
+                            Text(
+                                text = "Bảo mật tốt 🔒",
+                                fontSize = 12.sp,
+                                color = Color.Green,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

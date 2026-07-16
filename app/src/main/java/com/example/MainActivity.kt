@@ -46,15 +46,6 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     setContent {
       MyApplicationTheme {
-        var bypassSecurity by remember { mutableStateOf(false) }
-
-        if (!bypassSecurity) {
-          com.example.ui.SecurityOverlay(
-            isDeveloperMode = com.example.shortdrama.BuildConfig.DEBUG,
-            onBypass = { bypassSecurity = true }
-          )
-        }
-
         val navController = rememberNavController()
         val viewModel: DramaViewModel = viewModel()
         val navBackStackEntry by navController.currentBackStackEntryAsState()

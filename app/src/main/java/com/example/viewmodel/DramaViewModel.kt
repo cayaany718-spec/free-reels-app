@@ -176,6 +176,62 @@ class DramaViewModel(application: Application) : AndroidViewModel(application) {
         saveUserSession(newProfile)
     }
 
+    fun registerWithEmail(email: String, password: String, nickname: String): Boolean {
+        val prefs = getApplication<Application>().getSharedPreferences("registered_users_db", android.content.Context.MODE_PRIVATE)
+        val usersJson = prefs.getString("users_list_json", "[]") ?: "[]"
+        try {
+            val arr = JSONArray(usersJson)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                if (obj.getString("email").equals(email, ignoreCase = true)) {
+                    return false // already exists
+                }
+            }
+            val newUser = JSONObject().apply {
+                put("email", email.trim())
+                put("password", password)
+                put("nickname", nickname.trim())
+                put("avatar", "🦊")
+            }
+            arr.put(newUser)
+            prefs.edit().putString("users_list_json", arr.toString()).apply()
+            
+            // Log in as new user
+            login(email, nickname, "🦊")
+            sendGmailNotification(email, nickname)
+            return true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        }
+    }
+
+    fun loginWithEmail(email: String, password: String): String? {
+        val prefs = getApplication<Application>().getSharedPreferences("registered_users_db", android.content.Context.MODE_PRIVATE)
+        val usersJson = prefs.getString("users_list_json", "[]") ?: "[]"
+        try {
+            val arr = JSONArray(usersJson)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                if (obj.getString("email").equals(email, ignoreCase = true)) {
+                    if (obj.getString("password") == password) {
+                        val nickname = obj.getString("nickname")
+                        val avatar = obj.optString("avatar", "🦊")
+                        login(email, nickname, avatar)
+                        sendGmailNotification(email, nickname)
+                        return null // success
+                    } else {
+                        return "Mật khẩu không chính xác"
+                    }
+                }
+            }
+            return "Tài khoản không tồn tại"
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return "Lỗi cơ sở dữ liệu"
+        }
+    }
+
     fun purchaseVip(packageName: String, durationDays: Int) {
         val profile = _currentUserProfile.value ?: UserProfile(
             id = "FR_${(100000..999999).random()}",
